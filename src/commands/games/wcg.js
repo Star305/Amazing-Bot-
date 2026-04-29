@@ -28,18 +28,22 @@ function isJoinMessage(input = '') {
     return compact === 'join';
 }
 
-function extractParticipantJid(message) {
-    const raw = message?.key?.participant
-        || message?.participant
-        || message?.sender
-        || '';
+function extractParticipantJid(message, fallback = '') {
+    const candidates = [
+        message?.key?.participant,
+        message?.participant,
+        message?.sender,
+        message?.key?.remoteJid
+    ].filter(Boolean);
 
-    if (typeof raw === 'string' && raw && !raw.endsWith('@g.us')) return raw;
+    for (const raw of candidates) {
+        if (typeof raw !== 'string') continue;
+        const jid = raw.trim();
+        if (!jid || jid.endsWith('@g.us')) continue;
+        return jid;
+    }
 
-    const remote = message?.key?.remoteJid || '';
-    if (typeof remote === 'string' && remote && !remote.endsWith('@g.us')) return remote;
-
-    return '';
+    return fallback || '';
 }
 
 function setChatHandler(chatId, handler) {
@@ -298,7 +302,7 @@ export default {
             const live = games.get(from);
             if (!live) return;
 
-            const actor = extractParticipantJid(incomingMessage);
+            const actor = extractParticipantJid(incomingMessage, live.host);
             if (!actor) return;
 
             const input = String(text || '').trim();
@@ -386,6 +390,9 @@ export default {
                 `🧩 Mode ${game.difficulty}`
             ].join('\n')
         }, { quoted: message });
+
+        // host is auto-enrolled so the game never misses the starter and join detection is more reliable
+        game.players.push({ jid: sender, out: false });
 
         game.joinTimer = setTimeout(async () => {
             const live = games.get(from);

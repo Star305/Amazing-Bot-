@@ -19,10 +19,36 @@ const CAPTIONS = [
     'How do I look? 💋'
 ];
 
-const state = global.deeState || (global.deeState = { enabledChats: new Set(), memory: new Map() });
+const MODEL_CHOICES = {
+    qwen: process.env.DEE_QWEN_MODEL || 'qwen/qwen2.5-vl-72b-instruct:free',
+    gemini: process.env.DEE_GEMINI_MODEL || 'google/gemini-2.0-flash-001',
+    groq: process.env.DEE_GROQ_MODEL || 'meta-llama/llama-3.3-70b-instruct'
+};
+
+const state = global.deeState || (global.deeState = { enabledChats: new Set(), memory: new Map(), models: new Map() });
 
 function isPhotoRequest(text = '') {
-    return /(photo|picture|pic|face|selfie|what do you look like)/i.test(text);
+    return /(photo|picture|pic|face|selfie|what do you look like|viewonce|view one)/i.test(text);
+}
+
+
+function getActiveModel(chatId) {
+    const key = String(state.models.get(chatId) || 'qwen').toLowerCase();
+    return MODEL_CHOICES[key] ? key : 'qwen';
+}
+
+function buildHelp(prefix = '.') {
+    return [
+        '💘 *Dee Help List*',
+        `${prefix}dee on - turn Dee on in this chat`,
+        `${prefix}dee off - turn Dee off in this chat`,
+        `${prefix}dee model qwen`,
+        `${prefix}dee model gemini`,
+        `${prefix}dee model groq`,
+        `${prefix}dee list - show all Dee functions`,
+        `${prefix}dee <message> - chat with Dee`,
+        `${prefix}dee pic - ask for Dee view-once photo`
+    ].join('\n');
 }
 
 export default {
@@ -30,10 +56,10 @@ export default {
     aliases: ['mrsdee', 'babe', 'bestie'],
     category: 'ai',
     description: 'Girlfriend AI assistant with on/off switch and photo mode',
-    usage: 'dee on|off|<message>',
+    usage: 'dee on|off|model <qwen|gemini|groq>|list|help|<message>',
     cooldown: 3,
 
-    async execute({ sock, message, from, args, sender }) {
+    async execute({ sock, message, from, args, sender, prefix = '.' }) {
         const text = args.join(' ').trim();
         const cmd = text.toLowerCase();
         if (cmd === 'on') {
@@ -44,6 +70,22 @@ export default {
             state.enabledChats.delete(from);
             return sock.sendMessage(from, { text: '✅ Dee is now OFF for this chat.' }, { quoted: message });
         }
+        if (cmd === 'help' || cmd === 'menu') return sock.sendMessage(from, { text: buildHelp(prefix) }, { quoted: message });
+        if (cmd === 'list') {
+            const active = getActiveModel(from);
+            return sock.sendMessage(from, {
+                text: `📜 *Dee List*\n- Romantic chat companion\n- Sends view-once photos when asked\n- Remembers short context\n- Identity: always introduces herself as Dee\n- Current model: *${active}* (${MODEL_CHOICES[active]})\n\nUse: ${prefix}dee help`
+            }, { quoted: message });
+        }
+        if (cmd.startsWith('model ')) {
+            const want = cmd.split(/\s+/)[1];
+            if (!MODEL_CHOICES[want]) {
+                return sock.sendMessage(from, { text: `❌ Choose one: qwen, gemini, groq` }, { quoted: message });
+            }
+            state.models.set(from, want);
+            return sock.sendMessage(from, { text: `✅ Dee model set to *${want}*.` }, { quoted: message });
+        }
+
         if (!state.enabledChats.has(from)) {
             return sock.sendMessage(from, { text: '⚠️ Dee is off in this chat. Use `.dee on` first.' }, { quoted: message });
         }
@@ -51,7 +93,7 @@ export default {
 
         if (isPhotoRequest(text)) {
             const image = DEE_PHOTOS[Math.floor(Math.random() * DEE_PHOTOS.length)];
-            const cap = CAPTIONS[Math.floor(Math.random() * CAPTIONS.length)];
+            const cap = `${CAPTIONS[Math.floor(Math.random() * CAPTIONS.length)]}\n\nI am Dee 💖`; 
             return sock.sendMessage(from, {
                 image: { url: image },
                 caption: cap,
@@ -62,11 +104,12 @@ export default {
         const key = `${from}:${sender}`;
         const prev = state.memory.get(key) || [];
         const history = [...prev.slice(-6), `User: ${text}`].join('\n');
-        const prompt = `You are Mrs Dee, a warm romantic chatbot. Keep responses short, sweet, and playful.\n${history}`;
+        const prompt = `You are Dee (Mrs Dee), a warm romantic chatbot. Always make it clear you are Dee. Keep responses short, sweet, and playful.\n${history}`;
 
         try {
+            const selected = getActiveModel(from);
             const { data } = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-                model: process.env.DEE_MODEL || 'qwen/qwen2.5-vl-72b-instruct:free',
+                model: MODEL_CHOICES[selected],
                 messages: [{ role: 'user', content: prompt }]
             }, {
                 headers: { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
