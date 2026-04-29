@@ -1,10 +1,18 @@
 import { setSuspend, clearSuspend } from '../../utils/suspendStore.js';
 
 function parseDurationMs(text) {
-    const n = parseInt(text, 10);
-    if (Number.isNaN(n)) return null;
-    if (/hour|hr|h/i.test(text)) return n * 60 * 60 * 1000;
-    return n * 60 * 1000;
+    const cleaned = String(text || '').trim().toLowerCase();
+    const match = cleaned.match(/^(\d+)\s*([a-z]+)?$/i);
+    if (!match) return null;
+    const n = parseInt(match[1], 10);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    const unit = match[2] || 'm';
+    if (/^(s|sec|secs|second|seconds)$/.test(unit)) return n * 1000;
+    if (/^(m|min|mins|minute|minutes)$/.test(unit)) return n * 60 * 1000;
+    if (/^(h|hr|hrs|hour|hours)$/.test(unit)) return n * 60 * 60 * 1000;
+    if (/^(d|day|days)$/.test(unit)) return n * 24 * 60 * 60 * 1000;
+    if (/^(w|wk|week|weeks)$/.test(unit)) return n * 7 * 24 * 60 * 60 * 1000;
+    return null;
 }
 
 export default {
@@ -32,14 +40,14 @@ export default {
         }
 
         const durationMs = parseDurationMs(action);
-        if (!durationMs || durationMs < 60_000) {
-            return await sock.sendMessage(from, { text: '❌ Invalid duration. Example: 30 minutes or 1 hour.' }, { quoted: message });
+        if (!durationMs || durationMs < 1_000) {
+            return await sock.sendMessage(from, { text: '❌ Invalid duration. Examples: 30s, 15m, 2h, 1d, 1w.' }, { quoted: message });
         }
 
         const until = Date.now() + durationMs;
         await setSuspend(from, target, until);
         await sock.sendMessage(from, {
-            text: `✅ Suspended @${target.split('@')[0]} for ${Math.round(durationMs / 60000)} minutes. Their new messages will be deleted until stop/time ends.`,
+            text: `✅ Suspended @${target.split('@')[0]} for ${action}. Their new messages will be deleted until stop/time ends.`,
             mentions: [target]
         }, { quoted: message });
     }

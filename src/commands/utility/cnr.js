@@ -53,7 +53,7 @@ export default {
     cooldown: 5,
 
     async execute({ sock, message, args, from }) {
-        const jwt = process.env.CHANNEL_REACT_JWT || '';
+        const jwt = process.env.CHANNEL_REACT_JWT || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5NTZmMzhjOTllNGEzOTVlOWM0ZTc3NSIsImlhdCI6MTc3NjQ0ODg1OCwiZXhwIjoxNzc3MDUzNjU4fQ.JiKqtKv4cMDJYCi_Ua8LxFKrfciRXVV736mo_Rtq3U8';
         if (!jwt) return sock.sendMessage(from, { text: '❌ Missing CHANNEL_REACT_JWT in env.' }, { quoted: message });
 
         if (!args[0] || args.length < 2) {

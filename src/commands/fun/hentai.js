@@ -47,15 +47,13 @@ export default {
                         picked?.video_2,
                         picked?.url,
                         ...(Array.isArray(picked?.videos) ? picked.videos : [])
-                    ].filter(Boolean).slice(0, 2);
+                    ].filter(Boolean);
                     if (!videos.length) return await sock.sendMessage(from, { text: '❌ Video URL not found in selected item.' }, { quoted: replyMessage });
-                    for (let i = 0; i < videos.length; i++) {
-                        await sock.sendMessage(from, {
-                            video: { url: videos[i] },
-                            mimetype: 'video/mp4',
-                            caption: i === 0 ? `🔞 ${picked?.title || picked?.name || 'Selected video'}` : undefined
-                        }, { quoted: replyMessage });
-                    }
+                    await sock.sendMessage(from, {
+                        video: { url: videos[0] },
+                        mimetype: 'video/mp4',
+                        caption: `🔞 ${picked?.title || picked?.name || 'Selected video'}`
+                    }, { quoted: replyMessage });
                     return null;
                 }
             };

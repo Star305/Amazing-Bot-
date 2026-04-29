@@ -33,7 +33,7 @@ async function downloadAndSend(url, type, sock, chatId, quotedMessage) {
     const title = resData.info?.title || resData.title || 'download';
     let downloadUrl = null;
 
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 30; i++) {
       const progressRes = await axios.get(resData.progress_url, { timeout: 20000 });
       const progressData = progressRes.data || {};
 
@@ -45,11 +45,11 @@ async function downloadAndSend(url, type, sock, chatId, quotedMessage) {
         downloadUrl = progressData.url;
         break;
       }
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2500));
     }
 
     if (!downloadUrl) {
-      throw new Error('Timed out waiting for the download link to generate.');
+      throw new Error('Timed out waiting for the download link to generate. Please try again.');
     }
 
     const ext = type === 'audio' ? 'mp3' : 'mp4';

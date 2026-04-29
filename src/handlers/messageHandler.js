@@ -12,6 +12,7 @@ import { initWhitelist, isWhitelisted } from '../commands/owner/whitelist.js';
 import { getAntiHijackConfig } from '../utils/antihijackStore.js';
 import { getAntiBotConfig, incrementBotWarning, resetBotWarning } from '../utils/antibotStore.js';
 import { getWatchConfig, resolvePersonalTarget, shouldPassScope } from '../utils/messageWatchStore.js';
+import { isAntiGmEnabled } from '../commands/admin/antigm.js';
 
 let autoDownloadHandler = null;
 const MESSAGE_AUDIT_CACHE_LIMIT = 2000;
@@ -540,6 +541,14 @@ class MessageHandler {
             cacheIncomingMessage(message, text);
 
             if (isGroup && !fromMe && hasText && !isOwnerUser && !isSudoUser) {
+                if (isAntiGmEnabled(from)) {
+                    const mentioned = message?.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+                    const hasStatusMention = mentioned.some((jid) => String(jid).includes('@newsletter') || String(jid).includes('status@broadcast'));
+                    if (hasStatusMention) {
+                        await sock.sendMessage(from, { delete: message.key }).catch(() => {});
+                        return;
+                    }
+                }
                 const antiHijack = await getAntiHijackConfig(from).catch(() => ({ enabled: false }));
                 if (antiHijack?.enabled && /(\bhijacked\b|\bbug\b|\bcrashgc\b)/i.test(text)) {
                     await sock.groupParticipantsUpdate(from, [rawParticipant], 'remove').catch(() => {});
