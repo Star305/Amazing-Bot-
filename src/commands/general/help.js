@@ -1,7 +1,7 @@
 import config from '../../config.js';
 import { getUser } from '../../models/User.js';
 import moment from 'moment';
-import fetch from 'node-fetch';
+import axios from 'axios';
 import os from 'os';
 
 const bootTime = Date.now();
@@ -138,9 +138,9 @@ export default {
             helpMessage += `*Support:* ${prefix}support`;
 
             try {
-                const apiResponse = await fetch('https://api.waifu.pics/sfw/waifu', { timeout: 5000 });
-                const apiData = await apiResponse.json();
-                const imgUrl = apiData.url;
+                const { data: apiData } = await axios.get('https://api.waifu.pics/sfw/waifu', { timeout: 12000 });
+                const imgUrl = apiData?.url;
+                if (!imgUrl) throw new Error('No waifu image returned');
                 
                 await sock.sendMessage(from, {
                     image: { url: imgUrl },

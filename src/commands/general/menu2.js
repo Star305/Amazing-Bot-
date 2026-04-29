@@ -1,56 +1,33 @@
-import fs from 'fs';
-import path from 'path';
-import fetch from 'node-fetch';
+import axios from 'axios';
+import { getAllCommands } from '../../utils/commandManager.js';
 
-async function getCommandsByCategory() {
-    const root = path.join(process.cwd(), 'src', 'commands');
+function getCommandsByCategory() {
     const buckets = {};
-
-    async function scan(dir, fallback = 'general') {
-        const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-        for (const entry of entries) {
-            const full = path.join(dir, entry.name);
-            if (entry.isDirectory()) {
-                await scan(full, entry.name);
-                continue;
-            }
-            if (!entry.name.endsWith('.js')) continue;
-            try {
-                const mod = await import(`file://${full}`);
-                const cmd = mod?.default;
-                if (!cmd?.name) continue;
-                const cat = String(cmd.category || fallback || 'general').toLowerCase();
-                if (!buckets[cat]) buckets[cat] = [];
-                buckets[cat].push(cmd.name);
-            } catch {}
-        }
+    for (const cmd of getAllCommands()) {
+        if (!cmd?.name) continue;
+        const cat = String(cmd.category || 'general').toLowerCase();
+        if (!buckets[cat]) buckets[cat] = [];
+        buckets[cat].push(cmd.name);
     }
-
-    await scan(root);
-    for (const cat of Object.keys(buckets)) {
-        buckets[cat] = [...new Set(buckets[cat])].sort((a, b) => a.localeCompare(b));
-    }
+    for (const cat of Object.keys(buckets)) buckets[cat] = [...new Set(buckets[cat])].sort();
     return buckets;
 }
 
 function buildMenu(prefix, categories) {
-    const fixed = [
-        'allmenu', 'aimenu', 'animemenu', 'bugmenu', 'downloadmenu', 'funmenu',
-        'gamemenu', 'groupmenu', 'logomenu', 'ownermenu', 'stickermenu',
-        'toolsmenu', 'voicemenu', 'othermenu'
-    ];
+    let text = '╔═══〔 ✨ BOT COMMAND CENTER ✨ 〕═══╗\n';
+    text += `║ Prefix: [ ${prefix} ]\n`;
+    text += `║ Categories: ${Object.keys(categories).length}\n`;
+    const total = Object.values(categories).reduce((a, c) => a + c.length, 0);
+    text += `║ Total Commands: ${total}\n`;
+    text += '╚═══════════════════════════════════╝\n\n';
 
-    let text = '━◆ *Λ𝗫𝗜𝗦 𝗫𝗠𝗗 - 𝐌𝐄𝐍𝐔 𝐂𝐀𝐓𝐄𝐆𝐎𝐑𝐈𝐄𝐒* ◆━━┓\n';
-    for (const item of fixed) text += `│❖ ${prefix}${item}\n`;
-    text += '┗━━━━━━━━━━━━━━━━━━━━━\n\n';
-
-    text += '╭──〔 *ALL COMMANDS BY CATEGORY* 〕──\n';
     for (const cat of Object.keys(categories).sort()) {
         const list = categories[cat];
-        text += `│\n│ *${cat.toUpperCase()}* (${list.length})\n`;
-        text += `│ ${list.map((c) => `${prefix}${c}`).join(' | ')}\n`;
+        text += `┏━〔 ${cat.toUpperCase()} • ${list.length} 〕\n`;
+        text += `┃ ${list.map((c) => `${prefix}${c}`).join('  •  ')}\n`;
+        text += '┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
     }
-    text += '╰────────────────────────';
+    text += '\nUse: .help <command> for details.';
     return text;
 }
 
@@ -63,12 +40,11 @@ export default {
     cooldown: 3,
 
     async execute({ sock, message, from, prefix }) {
-        const categories = await getCommandsByCategory();
+        const categories = getCommandsByCategory();
         const caption = buildMenu(prefix, categories);
 
         try {
-            const response = await fetch('https://api.waifu.pics/sfw/waifu', { timeout: 10000 });
-            const data = await response.json();
+            const { data } = await axios.get('https://api.waifu.pics/sfw/waifu', { timeout: 12000 });
             if (data?.url) {
                 return sock.sendMessage(from, { image: { url: data.url }, caption }, { quoted: message });
             }
