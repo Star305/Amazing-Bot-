@@ -313,6 +313,10 @@ export default {
                 if (!isJoinMessage(input)) return;
                 if (live.players.some((player) => player.jid === actor)) return;
                 live.players.push({ jid: actor, out: false });
+                await sock.sendMessage(from, {
+                    text: `✅ ${mention(actor)} joined`,
+                    mentions: [actor]
+                }, { quoted: incomingMessage });
                 return;
             }
 

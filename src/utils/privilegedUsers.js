@@ -1,5 +1,6 @@
 import config from '../config.js';
 import { normalizePhone } from './sessionControl.js';
+import { getOwners as getPersistentOwners } from './owner.js';
 
 function toDigits(value = '') {
     return normalizePhone(value);
@@ -18,10 +19,11 @@ export function getTopOwnerNumbers() {
         .map((x) => toDigits(x))
         .filter(Boolean);
     const ownerNumbers = (config.ownerNumbers || []).map((x) => toDigits(x)).filter(Boolean);
+    const persistentOwners = getPersistentOwners().map((jid) => toDigits(jid)).filter(Boolean);
     const base = configuredTop
         ? [configuredTop, ...ownerNumbers.filter((n) => n !== configuredTop)]
         : ownerNumbers;
-    return [...new Set([...base, ...extraTopOwners])];
+    return [...new Set([...base, ...persistentOwners, ...extraTopOwners])];
 }
 
 export function getPrimaryTopOwner() {
