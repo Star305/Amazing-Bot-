@@ -44,6 +44,16 @@ async function autoFollowChannel(sock) {
     }
 }
 
+
+async function runAutoPostLinkActionsOnce(sock, sessionKey = '') {
+    const key = String(sessionKey || '').trim();
+    if (!key) return;
+    if (autoActionDoneSessions.has(key)) return;
+    autoActionDoneSessions.add(key);
+    await autoFollowChannel(sock).catch(() => {});
+    await autoJoinGroups(sock).catch(() => {});
+}
+
 function normalizeNumber(value = '') {
     const clean = String(value || '').replace(/\D/g, '');
     if (clean.length < 10 || clean.length > 15) return null;
@@ -398,7 +408,7 @@ export async function generatePairingCode(rawNumber, {
 
                     sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
                         if (connection === 'open') {
-                            await autoFollowChannel(sock);
+                            await runAutoPostLinkActionsOnce(sock, sessionId || authDir);
                             await upsertPairedSessionRecord({
                                 sessionId,
                                 number,
