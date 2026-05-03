@@ -25,7 +25,7 @@ function normalizeWord(input = '') {
 
 function isJoinMessage(input = '') {
     const compact = String(input).trim().toLowerCase().replace(/[^a-z]/g, '');
-    return compact === 'join';
+    return compact === 'join' || compact === 'joined';
 }
 
 function extractParticipantJid(message, fallback = '') {

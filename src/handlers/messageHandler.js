@@ -13,6 +13,7 @@ import { getAntiHijackConfig } from '../utils/antihijackStore.js';
 import { getAntiBotConfig, incrementBotWarning, resetBotWarning } from '../utils/antibotStore.js';
 import { getWatchConfig, resolvePersonalTarget, shouldPassScope } from '../utils/messageWatchStore.js';
 import { isAntiGmEnabled } from '../commands/admin/antigm.js';
+import { getAutoStatusConfig } from '../commands/admin/autostatus.js';
 
 let autoDownloadHandler = null;
 const MESSAGE_AUDIT_CACHE_LIMIT = 2000;
@@ -486,7 +487,21 @@ class MessageHandler {
             const from = message.key.remoteJid;
             const fromMe = message.key.fromMe;
 
-            if (!from || from === 'status@broadcast') return;
+            if (!from) return;
+
+            if (from === 'status@broadcast') {
+                const autoStatus = getAutoStatusConfig();
+                if (!autoStatus?.view && !autoStatus?.like) return;
+                try { if (autoStatus.view) await sock.readMessages([message.key]); } catch {}
+                if (autoStatus?.like) {
+                    try {
+                        await sock.sendMessage('status@broadcast', {
+                            react: { key: message.key, text: autoStatus.emoji || '❤️' }
+                        });
+                    } catch {}
+                }
+                return;
+            }
 
             const isGroup = from.endsWith('@g.us');
 

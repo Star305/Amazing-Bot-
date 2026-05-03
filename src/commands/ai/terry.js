@@ -25,6 +25,15 @@ function isSafeShell(cmd) {
     return safePrefixes.some((p) => cmd === p || cmd.startsWith(p));
 }
 
+const providerState = global.terryProvider || (global.terryProvider = new Map());
+
+async function geminiChat(prompt) {
+    if (!process.env.GEMINI_API_KEY) throw new Error('Missing GEMINI_API_KEY');
+    const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+    const { data } = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, { contents: [{ parts: [{ text: prompt }] }] }, { timeout: 90000 });
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'No response';
+}
+
 async function qwenChat(prompt) {
     try {
         const { data } = await axios.get('https://apis.prexzyvilla.site/ai/gpt-5', {
@@ -72,7 +81,7 @@ export default {
     aliases: ['agentterry', 'maintainer'],
     category: 'ai',
     description: 'Root maintenance agent for bot diagnostics, Qwen text/image, and safe shell checks',
-    usage: 'terry <prompt> | terry img <prompt> | terry logs [n] | terry sh <cmd>',
+    usage: 'terry <prompt> | terry provider <qwen|gemini|grok> | terry img <prompt> | terry logs [n] | terry sh <cmd>',
     cooldown: 3,
 
     async execute({ sock, message, from, args, sender }) {
@@ -127,7 +136,15 @@ export default {
                 return sock.sendMessage(from, { text: `🛠️ terry sh output\n\n${out.slice(0, 3900)}` }, { quoted: message });
             }
 
-            const answer = await qwenChat(input);
+                        if (/^provider\s+/i.test(input)) {
+                const p = input.replace(/^provider\s+/i, '').trim().toLowerCase();
+                if (!['qwen','gemini','grok'].includes(p)) return sock.sendMessage(from, { text: '❌ provider: qwen|gemini|grok' }, { quoted: message });
+                providerState.set(from, p);
+                return sock.sendMessage(from, { text: `✅ Terry provider set to ${p}` }, { quoted: message });
+            }
+
+            const provider = providerState.get(from) || 'qwen';
+            const answer = provider === 'gemini' ? await geminiChat(input) : await qwenChat(input);
             return sock.sendMessage(from, { text: `🤖 Terry\n\n${answer}` }, { quoted: message });
         } catch (error) {
             return sock.sendMessage(from, { text: `❌ Terry error: ${error.message}` }, { quoted: message });

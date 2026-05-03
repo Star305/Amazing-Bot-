@@ -613,6 +613,11 @@ export async function startTelegramPairBot({
         let pairId = null;
 
         try {
+            const existingStore = await loadStore();
+            const userPairs = (existingStore.pairs || []).filter((x) => x.tgUserId === String(user.id));
+            if (userPairs.length > 0) {
+                return sendText(chatId, '❌ You can only pair once with this bot. Use /pairs to view your existing pair.');
+            }
             await sendText(chatId, '⏳ Generating your pairing code, please wait...');
             const store = await loadStore();
             store.chats = Array.from(new Set([...(store.chats || []), String(chatId)]));

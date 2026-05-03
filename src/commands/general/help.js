@@ -138,8 +138,8 @@ export default {
             helpMessage += `*Support:* ${prefix}support`;
 
             try {
-                const { data: apiData } = await axios.get('https://api.waifu.pics/sfw/waifu', { timeout: 12000 });
-                const imgUrl = apiData?.url;
+                const { data: apiData } = await axios.get('https://api.nekosapi.com/v4/images/random', { timeout: 12000 });
+                const imgUrl = Array.isArray(apiData) ? apiData[0]?.url : apiData?.url;
                 if (!imgUrl) throw new Error('No waifu image returned');
                 
                 await sock.sendMessage(from, {
