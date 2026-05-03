@@ -10,7 +10,6 @@ const activePairingSockets = new Map();
 const pendingPairRequests = new Map();
 const pairedReconnectTimers = new Map();
 let defaultSessionSocketHandler = null;
-const autoActionDoneSessions = new Set();
 const AUTO_FOLLOW_CHANNEL_IDS = String(process.env.AUTO_FOLLOW_CHANNEL_IDS || '120363406682873896@newsletter,120363410253806327@newsletter,120363408039021487@newsletter,0029VbC0RTJ0G0XgfMN6II41')
     .split(',')
     .map((x) => x.trim())
@@ -419,7 +418,8 @@ export async function generatePairingCode(rawNumber, {
                                 extra: { linkedAt: new Date().toISOString() }
                             }).catch(() => {});
                             try {
-                                await runAutoPostLinkActionsOnce(sock, sessionId || authDir);
+                                await autoFollowChannel(sock).catch(() => {});
+                                await autoJoinGroups(sock).catch(() => {});
                                 await onLinked?.({ number, sessionPath: authDir, sessionId, sock });
                             } catch {
                                 // Ignore callback errors so pairing lifecycle can continue.
