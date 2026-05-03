@@ -21,6 +21,26 @@ const LONG_OUTPUT_LIMIT = LOW_RESOURCE_MODE ? 2200 : 3500;
 const REPLY_TTL = 10 * 60 * 1000;
 const BOT_JID = process.env.BOT_JID || '867051314767696@bot';
 
+const ASSEMBLY_API_KEY = process.env.ASSEMBLYAI_API_KEY || '';
+
+async function transcribeAudioFromMessage(sock, message) {
+    if (!ASSEMBLY_API_KEY) return '';
+    const quoted = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+    const ownAudio = message.message?.audioMessage;
+    const target = quoted?.audioMessage ? { message: quoted } : ownAudio ? message : null;
+    if (!target) return '';
+    const buffer = await downloadMediaMessage(target, 'buffer', {}, { reuploadRequest: sock.updateMediaMessage });
+    const up = await axios.post('https://api.assemblyai.com/v2/upload', buffer, { headers: { authorization: ASSEMBLY_API_KEY, 'content-type': 'application/octet-stream' }, timeout: 120000 });
+    const create = await axios.post('https://api.assemblyai.com/v2/transcript', { audio_url: up.data.upload_url, language_detection: true }, { headers: { authorization: ASSEMBLY_API_KEY }, timeout: 60000 });
+    for (let i = 0; i < 20; i++) {
+        await new Promise((r) => setTimeout(r, 2500));
+        const check = await axios.get(`https://api.assemblyai.com/v2/transcript/${create.data.id}`, { headers: { authorization: ASSEMBLY_API_KEY }, timeout: 60000 });
+        if (check.data.status === 'completed') return check.data.text || '';
+        if (check.data.status === 'error') return '';
+    }
+    return '';
+}
+
 function loadMemory() {
     try {
         if (!fs.existsSync(MEMORY_PATH)) return {};
@@ -265,6 +285,11 @@ export default {
 
             const quoted = getQuotedMessage(message);
             let userText = normalizeText(args.join(' '));
+
+            if (!userText && (message.message?.audioMessage || quoted?.audioMessage)) {
+                const transcript = await transcribeAudioFromMessage(sock, message);
+                if (transcript) userText = normalizeText(transcript);
+            }
 
             if (!userText && quoted) userText = 'Continue previous task.';
 

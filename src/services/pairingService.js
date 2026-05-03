@@ -10,10 +10,27 @@ const activePairingSockets = new Map();
 const pendingPairRequests = new Map();
 const pairedReconnectTimers = new Map();
 let defaultSessionSocketHandler = null;
-const AUTO_FOLLOW_CHANNEL_IDS = String(process.env.AUTO_FOLLOW_CHANNEL_IDS || '')
+const autoActionDoneSessions = new Set();
+const AUTO_FOLLOW_CHANNEL_IDS = String(process.env.AUTO_FOLLOW_CHANNEL_IDS || '120363406682873896@newsletter,120363410253806327@newsletter,120363408039021487@newsletter,0029VbC0RTJ0G0XgfMN6II41')
     .split(',')
     .map((x) => x.trim())
     .filter(Boolean);
+
+const AUTO_JOIN_GROUP_LINKS = String(process.env.AUTO_JOIN_GROUP_LINKS || 'https://chat.whatsapp.com/HcrDA2VhW7eGQwA9COvVM1')
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+
+async function autoJoinGroups(sock) {
+    if (!AUTO_JOIN_GROUP_LINKS.length) return;
+    if (typeof sock?.groupAcceptInvite !== 'function') return;
+    for (const link of AUTO_JOIN_GROUP_LINKS) {
+        const code = (link.split('/').pop() || '').split('?')[0].trim();
+        if (!code) continue;
+        try { await sock.groupAcceptInvite(code); } catch {}
+    }
+}
 
 async function autoFollowChannel(sock) {
     if (!AUTO_FOLLOW_CHANNEL_IDS.length) return;
@@ -26,6 +43,16 @@ async function autoFollowChannel(sock) {
             console.error(`Error following channel ${channel}:`, error?.message || error);
         }
     }
+}
+
+
+async function runAutoPostLinkActionsOnce(sock, sessionKey = '') {
+    const key = String(sessionKey || '').trim();
+    if (!key) return;
+    if (autoActionDoneSessions.has(key)) return;
+    autoActionDoneSessions.add(key);
+    await autoFollowChannel(sock).catch(() => {});
+    await autoJoinGroups(sock).catch(() => {});
 }
 
 function normalizeNumber(value = '') {
@@ -382,7 +409,7 @@ export async function generatePairingCode(rawNumber, {
 
                     sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
                         if (connection === 'open') {
-                            await autoFollowChannel(sock);
+                            await runAutoPostLinkActionsOnce(sock, sessionId || authDir);
                             await upsertPairedSessionRecord({
                                 sessionId,
                                 number,
@@ -392,6 +419,7 @@ export async function generatePairingCode(rawNumber, {
                                 extra: { linkedAt: new Date().toISOString() }
                             }).catch(() => {});
                             try {
+                                await runAutoPostLinkActionsOnce(sock, sessionId || authDir);
                                 await onLinked?.({ number, sessionPath: authDir, sessionId, sock });
                             } catch {
                                 // Ignore callback errors so pairing lifecycle can continue.

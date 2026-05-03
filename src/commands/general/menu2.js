@@ -44,9 +44,10 @@ export default {
         const caption = buildMenu(prefix, categories);
 
         try {
-            const { data } = await axios.get('https://api.waifu.pics/sfw/waifu', { timeout: 12000 });
+            const { data } = await axios.get('https://api.nekosapi.com/v4/images/random', { timeout: 12000 });
             if (data?.url) {
-                return sock.sendMessage(from, { image: { url: data.url }, caption }, { quoted: message });
+                const imgUrl = Array.isArray(data) ? data[0]?.url : data?.url;
+            if (imgUrl) return sock.sendMessage(from, { image: { url: imgUrl }, caption }, { quoted: message });
             }
         } catch {}
 
