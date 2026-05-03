@@ -1,127 +1,85 @@
 import axios from 'axios';
+import fs from 'fs';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import { downloadMediaMessage } from '@whiskeysockets/baileys';
 
+const execAsync = promisify(exec);
 const DEE_PHOTOS = [
-    'https://i.ibb.co/YTBPq5vj/fd53ebefdcd3.jpg',
-    'https://i.ibb.co/NnL8S4wh/a66e525b87e6.jpg',
-    'https://i.ibb.co/sddkLcYb/6d380869a836.jpg',
-    'https://i.ibb.co/dJbKGRs3/326a2aae34ae.jpg',
-    'https://i.ibb.co/BKL2zxbc/2c46c549b9bf.jpg',
-    'https://i.ibb.co/TDqPDWR7/e01a00c28dbe.jpg',
-    'https://i.ibb.co/W4vHzL2K/2a7d9aa8ada1.jpg',
-    'https://i.ibb.co/7JpCFqLK/3cb6c963741f.jpg',
-    'https://i.ibb.co/5hPk0TBh/0b71da45787b.jpg'
+  'https://i.ibb.co/YTBPq5vj/fd53ebefdcd3.jpg','https://i.ibb.co/NnL8S4wh/a66e525b87e6.jpg','https://i.ibb.co/sddkLcYb/6d380869a836.jpg'
 ];
+const MODEL_CHOICES = { qwen: process.env.DEE_QWEN_MODEL || 'qwen/qwen2.5-vl-72b-instruct:free', gemini: process.env.DEE_GEMINI_MODEL || 'google/gemini-2.0-flash-001', groq: process.env.DEE_GROQ_MODEL || 'meta-llama/llama-3.3-70b-instruct' };
+const state = global.deeState || (global.deeState = { enabledChats: new Set(), memory: new Map(), models: new Map(), voiceMode: new Set() });
+const ASSEMBLY_API_KEY = process.env.ASSEMBLYAI_API_KEY || '22b87c4a57e04c73914de4b75edd05c1';
 
-const CAPTIONS = [
-    'Okay this is what I look like 😌',
-    'Trust me, you gonna fall for me 💘',
-    'I know you gon like it 😉',
-    'How do I look? 💋'
-];
+const getActiveModel = (chatId) => MODEL_CHOICES[String(state.models.get(chatId) || 'gemini').toLowerCase()] ? String(state.models.get(chatId) || 'gemini').toLowerCase() : 'gemini';
+const isAudioMsg = (m) => !!(m?.message?.audioMessage || m?.message?.extendedTextMessage?.contextInfo?.quotedMessage?.audioMessage);
 
-const MODEL_CHOICES = {
-    qwen: process.env.DEE_QWEN_MODEL || 'qwen/qwen2.5-vl-72b-instruct:free',
-    gemini: process.env.DEE_GEMINI_MODEL || 'google/gemini-2.0-flash-001',
-    groq: process.env.DEE_GROQ_MODEL || 'meta-llama/llama-3.3-70b-instruct'
-};
-
-const state = global.deeState || (global.deeState = { enabledChats: new Set(), memory: new Map(), models: new Map() });
-
-function isPhotoRequest(text = '') {
-    return /(photo|picture|pic|face|selfie|what do you look like|viewonce|view one)/i.test(text);
+async function sttFromMessage(sock, message) {
+  const quoted = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+  const target = quoted?.audioMessage ? { message: quoted } : message;
+  const buffer = await downloadMediaMessage(target, 'buffer', {}, { reuploadRequest: sock.updateMediaMessage });
+  const up = await axios.post('https://api.assemblyai.com/v2/upload', buffer, { headers: { authorization: ASSEMBLY_API_KEY, 'content-type': 'application/octet-stream' } });
+  const create = await axios.post('https://api.assemblyai.com/v2/transcript', { audio_url: up.data.upload_url, language_detection: true }, { headers: { authorization: ASSEMBLY_API_KEY } });
+  for (let i = 0; i < 20; i++) {
+    await new Promise((r) => setTimeout(r, 2500));
+    const check = await axios.get(`https://api.assemblyai.com/v2/transcript/${create.data.id}`, { headers: { authorization: ASSEMBLY_API_KEY } });
+    if (check.data.status === 'completed') return check.data.text || '';
+    if (check.data.status === 'error') throw new Error(check.data.error || 'Transcribe failed');
+  }
+  throw new Error('Transcribe timeout');
 }
 
-
-function getActiveModel(chatId) {
-    const key = String(state.models.get(chatId) || 'qwen').toLowerCase();
-    return MODEL_CHOICES[key] ? key : 'qwen';
-}
-
-function buildHelp(prefix = '.') {
-    return [
-        '💘 *Dee Help List*',
-        `${prefix}dee on - turn Dee on in this chat`,
-        `${prefix}dee off - turn Dee off in this chat`,
-        `${prefix}dee model qwen`,
-        `${prefix}dee model gemini`,
-        `${prefix}dee model groq`,
-        `${prefix}dee list - show all Dee functions`,
-        `${prefix}dee <message> - chat with Dee`,
-        `${prefix}dee pic - ask for Dee view-once photo`
-    ].join('\n');
+async function ttsOpus(text) {
+  const ttsUrl = `https://api.streamelements.com/kappa/v2/speech?voice=Joanna&text=${encodeURIComponent(String(text).slice(0, 450))}`;
+  const mp3 = await axios.get(ttsUrl, { responseType: 'arraybuffer', timeout: 40000 });
+  const tmp = `/tmp/dee_${Date.now()}`;
+  const inMp3 = `${tmp}.mp3`; const outOgg = `${tmp}.ogg`;
+  fs.writeFileSync(inMp3, Buffer.from(mp3.data));
+  await execAsync(`ffmpeg -y -i ${inMp3} -c:a libopus -b:a 48k -vbr on ${outOgg}`);
+  const ogg = fs.readFileSync(outOgg);
+  fs.unlinkSync(inMp3); fs.unlinkSync(outOgg);
+  return ogg;
 }
 
 export default {
-    name: 'dee',
-    aliases: ['mrsdee', 'babe', 'bestie'],
-    category: 'ai',
-    description: 'Girlfriend AI assistant with on/off switch and photo mode',
-    usage: 'dee on|off|model <qwen|gemini|groq>|list|help|<message>',
-    cooldown: 3,
+  name: 'dee', aliases: ['mrsdee', 'babe', 'bestie'], category: 'ai', usage: 'dee on/off | dee vn on/off | dee model <qwen|gemini|groq> | dee <message>', cooldown: 3,
+  async execute({ sock, message, from, args, sender, prefix = '.' }) {
+    let text = args.join(' ').trim();
+    const cmd = text.toLowerCase();
+    if (cmd === 'on') { state.enabledChats.add(from); return sock.sendMessage(from, { text: '✅ Dee ON' }, { quoted: message }); }
+    if (cmd === 'off') { state.enabledChats.delete(from); return sock.sendMessage(from, { text: '✅ Dee OFF' }, { quoted: message }); }
+    if (cmd === 'vn on') { state.voiceMode.add(`${from}:${sender}`); return sock.sendMessage(from, { text: '✅ Dee voice-reply ON for you.' }, { quoted: message }); }
+    if (cmd === 'vn off') { state.voiceMode.delete(`${from}:${sender}`); return sock.sendMessage(from, { text: '✅ Dee voice-reply OFF for you.' }, { quoted: message }); }
+    if (cmd === 'help' || !cmd) return sock.sendMessage(from, { text: `Use: ${prefix}dee on/off\n${prefix}dee vn on/off\n${prefix}dee model gemini|groq|qwen\n${prefix}dee <chat>` }, { quoted: message });
+    if (cmd.startsWith('model ')) { const want = cmd.split(/\s+/)[1]; if (!MODEL_CHOICES[want]) return sock.sendMessage(from, { text: '❌ model: qwen|gemini|groq' }, { quoted: message }); state.models.set(from, want); return sock.sendMessage(from, { text: `✅ Dee model ${want}` }, { quoted: message }); }
+    if (!state.enabledChats.has(from)) return sock.sendMessage(from, { text: '⚠️ Dee is off. Use .dee on' }, { quoted: message });
 
-    async execute({ sock, message, from, args, sender, prefix = '.' }) {
-        const text = args.join(' ').trim();
-        const cmd = text.toLowerCase();
-        if (cmd === 'on') {
-            state.enabledChats.add(from);
-            return sock.sendMessage(from, { text: '✅ Dee is now ON for this chat.' }, { quoted: message });
-        }
-        if (cmd === 'off') {
-            state.enabledChats.delete(from);
-            return sock.sendMessage(from, { text: '✅ Dee is now OFF for this chat.' }, { quoted: message });
-        }
-        if (cmd === 'help' || cmd === 'menu') return sock.sendMessage(from, { text: buildHelp(prefix) }, { quoted: message });
-        if (cmd === 'list') {
-            const active = getActiveModel(from);
-            return sock.sendMessage(from, {
-                text: `📜 *Dee List*\n- Romantic chat companion\n- Sends view-once photos when asked\n- Remembers short context\n- Identity: always introduces herself as Dee\n- Current model: *${active}* (${MODEL_CHOICES[active]})\n\nUse: ${prefix}dee help`
-            }, { quoted: message });
-        }
-        if (cmd.startsWith('model ')) {
-            const want = cmd.split(/\s+/)[1];
-            if (!MODEL_CHOICES[want]) {
-                return sock.sendMessage(from, { text: `❌ Choose one: qwen, gemini, groq` }, { quoted: message });
-            }
-            state.models.set(from, want);
-            return sock.sendMessage(from, { text: `✅ Dee model set to *${want}*.` }, { quoted: message });
-        }
-
-        if (!state.enabledChats.has(from)) {
-            return sock.sendMessage(from, { text: '⚠️ Dee is off in this chat. Use `.dee on` first.' }, { quoted: message });
-        }
-        if (!text) return sock.sendMessage(from, { text: 'Hey love, tell me something 💕' }, { quoted: message });
-
-        if (isPhotoRequest(text)) {
-            const image = DEE_PHOTOS[Math.floor(Math.random() * DEE_PHOTOS.length)];
-            const cap = `${CAPTIONS[Math.floor(Math.random() * CAPTIONS.length)]}\n\nI am Dee 💖`; 
-            return sock.sendMessage(from, {
-                image: { url: image },
-                caption: cap,
-                viewOnce: true
-            }, { quoted: message });
-        }
-
-        const key = `${from}:${sender}`;
-        const prev = state.memory.get(key) || [];
-        const history = [...prev.slice(-6), `User: ${text}`].join('\n');
-        const prompt = `You are Dee (Mrs Dee), a warm romantic chatbot. Always make it clear you are Dee. Keep responses short, sweet, and playful.\n${history}`;
-
-        try {
-            const selected = getActiveModel(from);
-            const { data } = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-                model: MODEL_CHOICES[selected],
-                messages: [{ role: 'user', content: prompt }]
-            }, {
-                headers: { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
-                timeout: 60000
-            });
-            const reply = data?.choices?.[0]?.message?.content?.trim() || 'I am here with you, always 💕';
-            state.memory.set(key, [...prev.slice(-10), `User: ${text}`, `Dee: ${reply}`]);
-            return sock.sendMessage(from, { text: reply }, { quoted: message });
-        } catch {
-            const fallback = 'Aww, network mood swing 😅 but I am still here for you babe 💖';
-            state.memory.set(key, [...prev.slice(-10), `User: ${text}`, `Dee: ${fallback}`]);
-            return sock.sendMessage(from, { text: fallback }, { quoted: message });
-        }
+    if (isAudioMsg(message)) {
+      await sock.sendMessage(from, { text: '⏳ Dee is transcribing your voice note...' }, { quoted: message });
+      text = await sttFromMessage(sock, message);
+      if (!text) return sock.sendMessage(from, { text: '❌ No speech detected.' }, { quoted: message });
     }
+
+    if (/(photo|picture|pic|selfie|view ?once)/i.test(text)) return sock.sendMessage(from, { image: { url: DEE_PHOTOS[Math.floor(Math.random() * DEE_PHOTOS.length)] }, caption: 'That is me, Dee 💖', viewOnce: true }, { quoted: message });
+
+    const key = `${from}:${sender}`; const prev = state.memory.get(key) || [];
+    const selected = getActiveModel(from);
+    const messages = [{ role: 'system', content: 'You are Dee. Be warm and concise. Keep context and handle switching between chat/image/song requests naturally.' }, ...prev.slice(-8).map((x) => ({ role: x.role, content: x.content })), { role: 'user', content: text }];
+
+    let reply = '';
+    try {
+      const { data } = await axios.post('https://openrouter.ai/api/v1/chat/completions', { model: MODEL_CHOICES[selected], messages }, { headers: { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 90000 });
+      reply = data?.choices?.[0]?.message?.content?.trim() || 'I am here with you 💕';
+    } catch (e) {
+      reply = `❌ Dee API failed: ${e.response?.data?.error?.message || e.message}`;
+    }
+
+    state.memory.set(key, [...prev.slice(-12), { role: 'user', content: text }, { role: 'assistant', content: reply }]);
+    if (state.voiceMode.has(key) || isAudioMsg(message)) {
+      const ogg = await ttsOpus(reply);
+      return sock.sendMessage(from, { audio: ogg, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: message });
+    }
+    return sock.sendMessage(from, { text: reply }, { quoted: message });
+  }
 };
