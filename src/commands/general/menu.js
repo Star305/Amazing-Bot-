@@ -174,10 +174,10 @@ export default {
 
         let sentMsg;
         try {
-            const apiResponse = await fetch('https://api.waifu.pics/sfw/waifu', { timeout: 5000 });
+            const apiResponse = await fetch('https://api.nekosapi.com/v4/images/random', { timeout: 5000 });
             const apiData = await apiResponse.json();
             sentMsg = await sock.sendMessage(from, {
-                image: { url: apiData.url },
+                image: { url: (Array.isArray(apiData) ? apiData[0]?.url : apiData?.url) },
                 caption: menuText
             }, { quoted: message });
         } catch {
