@@ -26,15 +26,17 @@ function isSafeShell(cmd) {
 }
 
 const providerState = global.terryProvider || (global.terryProvider = new Map());
+const terryMemory = global.terryMemory || (global.terryMemory = new Map());
 
-async function geminiChat(prompt) {
+async function geminiChat(prompt, history = []) {
     if (!process.env.GEMINI_API_KEY) throw new Error('Missing GEMINI_API_KEY');
-    const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-    const { data } = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, { contents: [{ parts: [{ text: prompt }] }] }, { timeout: 90000 });
+    const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const merged = [...history.slice(-6), { role: 'user', content: prompt }].map((m)=>`${m.role}: ${m.content}`).join('\n');
+    const { data } = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, { contents: [{ parts: [{ text: merged }] }] }, { timeout: 90000 });
     return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'No response';
 }
 
-async function qwenChat(prompt) {
+async function qwenChat(prompt, history = []) {
     try {
         const { data } = await axios.get('https://apis.prexzyvilla.site/ai/gpt-5', {
             params: { text: prompt },
@@ -47,7 +49,7 @@ async function qwenChat(prompt) {
     if (!QWEN_API_KEY) throw new Error('Missing QWEN_API_KEY');
     const { data } = await axios.post(`${QWEN_BASE_URL}/chat/completions`, {
         model: QWEN_MODEL,
-        messages: [{ role: 'system', content: 'You are Terry, the Amazing-Bot maintenance agent. Give concise, practical fixes and exact file paths.' }, { role: 'user', content: prompt }],
+        messages: [{ role: 'system', content: 'You are Terry, the Amazing-Bot maintenance agent. Give concise, practical fixes and exact file paths.' }, ...history.slice(-6), { role: 'user', content: prompt }],
         temperature: 0.3,
         max_tokens: 1400
     }, { timeout: 120000, headers: { Authorization: `Bearer ${QWEN_API_KEY}`, 'Content-Type': 'application/json' } });
@@ -56,6 +58,13 @@ async function qwenChat(prompt) {
     return text;
 }
 
+
+async function groqChat(prompt, history = []) {
+    if (!process.env.GROQ_API_KEY) throw new Error('Missing GROQ_API_KEY');
+    const model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+    const { data } = await axios.post('https://api.groq.com/openai/v1/chat/completions', { model, messages: [{ role: 'system', content: 'You are Terry, a coding and maintenance agent.' }, ...history.slice(-6), { role: 'user', content: prompt }] }, { timeout: 120000, headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' } });
+    return data?.choices?.[0]?.message?.content?.trim() || 'No response';
+}
 async function qwenImage(prompt) {
     if (!QWEN_API_KEY) throw new Error('Missing QWEN_API_KEY');
     const { data } = await axios.post(`${QWEN_BASE_URL}/images/generations`, {
@@ -102,7 +111,7 @@ export default {
                 const prompt = input.replace(/^img\s+/i, '').trim();
                 if (!prompt) return sock.sendMessage(from, { text: '❌ Usage: terry img <prompt>' }, { quoted: message });
                 await sock.sendMessage(from, { text: '🎨 Terry generating image...' }, { quoted: message });
-                const url = await qwenImage(prompt);
+                const url = process.env.FLUX_API_URL ? (await axios.post(process.env.FLUX_API_URL, { prompt }, { headers: { Authorization: `Bearer ${process.env.FLUX_API_KEY || ''}` }, timeout: 180000 })).data?.url : await qwenImage(prompt);
                 if (!url) throw new Error('No image URL returned');
                 return sock.sendMessage(from, { image: { url }, caption: `✅ Terry Image\nPrompt: ${prompt}` }, { quoted: message });
             }
@@ -143,8 +152,11 @@ export default {
                 return sock.sendMessage(from, { text: `✅ Terry provider set to ${p}` }, { quoted: message });
             }
 
-            const provider = providerState.get(from) || 'qwen';
-            const answer = provider === 'gemini' ? await geminiChat(input) : await qwenChat(input);
+            const provider = providerState.get(from) || 'gemini';
+            const memKey = `${from}:${sender}`;
+            const history = terryMemory.get(memKey) || [];
+            const answer = provider === 'gemini' ? await geminiChat(input, history) : provider === 'grok' ? await groqChat(input, history) : await qwenChat(input, history);
+            terryMemory.set(memKey, [...history.slice(-8), { role: 'user', content: input }, { role: 'assistant', content: answer }]);
             return sock.sendMessage(from, { text: `🤖 Terry\n\n${answer}` }, { quoted: message });
         } catch (error) {
             return sock.sendMessage(from, { text: `❌ Terry error: ${error.message}` }, { quoted: message });

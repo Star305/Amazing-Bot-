@@ -55,7 +55,8 @@ export default {
   usage: 'nsfw <category>',
   cooldown: 5,
   async execute({ sock, message, args, command }) {
-    const requested = (command && command !== 'nsfw' && command !== 'text2nsfw') ? command.toLowerCase() : (args[0] || 'hentai').toLowerCase();
+    const cmdName = typeof command === 'string' ? command.toLowerCase() : '';
+    const requested = (cmdName && cmdName !== 'nsfw' && cmdName !== 'text2nsfw') ? cmdName : String(args[0] || 'hentai').toLowerCase();
     await sendNsfwMedia(sock, message, requested, requested.toUpperCase());
   }
 };

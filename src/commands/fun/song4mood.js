@@ -1,12 +1,12 @@
 import { runRelationshipCommand } from './relationshipCore.js';
 
 export default {
-  name: 'joke',
+  name: 'song4mood',
   category: 'fun',
-  description: 'joke command',
-  usage: 'joke',
+  description: 'song4mood command',
+  usage: 'song4mood',
   cooldown: 2,
   async execute(ctx) {
-    return runRelationshipCommand('joke', ctx);
+    return runRelationshipCommand('song4mood', ctx);
   }
 };
