@@ -1,12 +1,12 @@
 import { runRelationshipCommand } from './relationshipCore.js';
 
 export default {
-  name: 'joke',
+  name: 'blockornot',
   category: 'fun',
-  description: 'joke command',
-  usage: 'joke',
+  description: 'blockornot command',
+  usage: 'blockornot',
   cooldown: 2,
   async execute(ctx) {
-    return runRelationshipCommand('joke', ctx);
+    return runRelationshipCommand('blockornot', ctx);
   }
 };

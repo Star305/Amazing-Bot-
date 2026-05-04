@@ -293,7 +293,8 @@ export default {
             joinTimer: null,
             turnTimer: null,
             round: 0,
-            minWordLength: DEFAULT_MIN_WORD_LENGTH
+            minWordLength: DEFAULT_MIN_WORD_LENGTH,
+            lastReject: ''
         };
 
         games.set(from, game);
@@ -302,6 +303,7 @@ export default {
             const live = games.get(from);
             if (!live) return;
 
+            if (incomingMessage?.key?.fromMe) return;
             const actor = extractParticipantJid(incomingMessage, live.host);
             if (!actor) return;
 
@@ -326,6 +328,9 @@ export default {
             if (!word) return;
 
             if (!word.startsWith(live.requiredLetter)) {
+                const rejectKey = `${actor}:${word}:letter:${live.requiredLetter}`;
+                if (live.lastReject === rejectKey) return;
+                live.lastReject = rejectKey;
                 await sock.sendMessage(from, {
                     text: `❌ ${mention(actor)} word must start with *${live.requiredLetter.toUpperCase()}*.`,
                     mentions: [actor]

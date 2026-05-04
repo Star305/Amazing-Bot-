@@ -1,12 +1,12 @@
 import { runRelationshipCommand } from './relationshipCore.js';
 
 export default {
-  name: 'joke',
+  name: 'overthink',
   category: 'fun',
-  description: 'joke command',
-  usage: 'joke',
+  description: 'overthink command',
+  usage: 'overthink',
   cooldown: 2,
   async execute(ctx) {
-    return runRelationshipCommand('joke', ctx);
+    return runRelationshipCommand('overthink', ctx);
   }
 };
