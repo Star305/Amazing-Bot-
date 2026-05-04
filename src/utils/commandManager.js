@@ -74,7 +74,12 @@ class CommandManager {
             const command = commandModule.default;
 
             if (!command?.name || typeof command?.execute !== 'function') {
-                logger.warn(`Invalid command structure: ${filename}`);
+                const hasNamedExports = Object.keys(commandModule || {}).some((k) => k !== 'default');
+                if (hasNamedExports) {
+                    logger.debug(`Skipping helper module in commands directory: ${filename}`);
+                } else {
+                    logger.warn(`Invalid command structure: ${filename}`);
+                }
                 return false;
             }
 

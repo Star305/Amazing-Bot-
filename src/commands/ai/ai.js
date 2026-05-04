@@ -429,7 +429,11 @@ async function sendVoiceReply(sock, from, text, quoted) {
     const inMp3 = `${tmp}.mp3`;
     const outOgg = `${tmp}.ogg`;
     await fs.writeFile(inMp3, voiceBuffer);
-    await execFileAsync('ffmpeg', ['-y', '-i', inMp3, '-c:a', 'libopus', '-b:a', '48k', '-vbr', 'on', outOgg]);
+    try {
+        await execFileAsync('ffmpeg', ['-y', '-f', 'mp3', '-analyzeduration', '100M', '-probesize', '100M', '-i', inMp3, '-vn', '-ac', '1', '-ar', '48000', '-c:a', 'libopus', '-b:a', '48k', '-vbr', 'on', outOgg]);
+    } catch (primaryErr) {
+        await execFileAsync('ffmpeg', ['-y', '-i', inMp3, '-vn', '-ac', '1', '-ar', '48000', '-c:a', 'libopus', '-b:a', '48k', outOgg]);
+    }
     const ogg = await fs.readFile(outOgg);
     await fs.remove(inMp3);
     await fs.remove(outOgg);
