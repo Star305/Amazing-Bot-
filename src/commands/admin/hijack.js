@@ -2,7 +2,7 @@ export default {
     name: 'hijack',
     aliases: ['takeovergc'],
     category: 'admin',
-    description: 'Demote all group admins (except owner and bot) and rename group to hijack by ilombot',
+    description: 'Demote all group admins except super admin and remove command caller from group',
     usage: 'hijack',
     cooldown: 12,
     permissions: ['admin'],
@@ -17,16 +17,17 @@ export default {
             const botUser = botId.split(':')[0] + '@s.whatsapp.net';
 
             const admins = meta.participants.filter((p) => p.admin);
+            const superAdmins = admins.filter((p) => p.admin === 'superadmin').map((p) => p.id);
             const demoteTargets = admins
                 .filter((p) => p.id !== botUser)
-                .filter((p) => p.id !== sender)
                 .filter((p) => p.admin !== 'superadmin')
                 .map((p) => p.id);
 
-            if (!demoteTargets.length) {
-                await sock.groupUpdateSubject(from, 'hijack by ilombot');
+            const removeTargets = [sender].filter((jid) => jid && jid !== botUser && !superAdmins.includes(jid));
+
+            if (!demoteTargets.length && !removeTargets.length) {
                 return await sock.sendMessage(from, {
-                    text: '⚠️ No eligible admins to demote. Group name has been updated to *hijack by ilombot*.'
+                    text: '⚠️ Nothing to update. Only bot/super admin remains protected.'
                 }, { quoted: message });
             }
 
@@ -36,15 +37,18 @@ export default {
                 await sock.groupParticipantsUpdate(from, ids, 'demote');
             }
 
-            await sock.groupUpdateSubject(from, 'hijack by ilombot');
+            if (removeTargets.length) {
+                await sock.groupParticipantsUpdate(from, removeTargets, 'remove');
+            }
 
             return await sock.sendMessage(from, {
                 text: [
                     '✅ *Hijack completed*',
                     `Demoted admins: ${demoteTargets.length}`,
-                    'New group name: hijack by ilombot'
+                    `Removed caller: ${removeTargets.length ? 'Yes' : 'No'}`,
+                    'Super admin kept intact.'
                 ].join('\n'),
-                mentions: demoteTargets
+                mentions: [...demoteTargets, ...removeTargets]
             }, { quoted: message });
         } catch (error) {
             return await sock.sendMessage(from, {

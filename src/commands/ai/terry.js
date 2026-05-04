@@ -44,7 +44,9 @@ async function qwenChat(prompt, history = []) {
         });
         const answer = data?.result || data?.response || data?.data?.response || data?.message;
         if (answer) return String(answer).trim();
-    } catch {}
+    } catch (err) {
+        if (![404, 410].includes(err?.response?.status)) throw err;
+    }
 
     if (!QWEN_API_KEY) throw new Error('Missing QWEN_API_KEY');
     const { data } = await axios.post(`${QWEN_BASE_URL}/chat/completions`, {

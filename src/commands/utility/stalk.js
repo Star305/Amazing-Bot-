@@ -18,9 +18,9 @@ async function resolveTargetJid(sock, from, message, args) {
     const ctx = message.message?.extendedTextMessage?.contextInfo || {};
     const mention = ctx.mentionedJid?.[0];
     const participant = ctx.participant;
-    const quotedParticipant = ctx?.quotedParticipant
-        || (ctx?.participant && ctx?.stanzaId ? ctx.participant : '');
-    const input = mention || quotedParticipant || participant || args[0] || (message?.key?.participant || message?.key?.remoteJid || '');
+    const quotedParticipant = ctx?.quotedParticipant || ctx?.participant || '';
+    const directMention = message?.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || '';
+    const input = mention || directMention || quotedParticipant || participant || args[0] || (message?.key?.participant || message?.key?.remoteJid || '');
     if (!input) return '';
 
     let raw = String(input);
