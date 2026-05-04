@@ -8,8 +8,8 @@ export default {
     name: 'antihijack',
     aliases: ['ahijack'],
     category: 'admin',
-    description: 'Auto-kick users sending hijack/bug/crashgc words and protect admin structure',
-    usage: 'antihijack <on|off|status>',
+    description: 'Protects group by demoting all admins except super admin and removes command caller',
+    usage: 'antihijack <on|off|status|enforce>',
     cooldown: 3,
     groupOnly: true,
     adminOnly: true,
@@ -17,8 +17,8 @@ export default {
 
     async execute({ sock, message, args, from, sender }) {
         const action = String(args[0] || 'status').toLowerCase();
-        if (!['on', 'off', 'status'].includes(action)) {
-            return sock.sendMessage(from, { text: '❌ Usage: antihijack <on|off|status>' }, { quoted: message });
+        if (!['on', 'off', 'status', 'enforce'].includes(action)) {
+            return sock.sendMessage(from, { text: '❌ Usage: antihijack <on|off|status|enforce>' }, { quoted: message });
         }
 
         if (action === 'status') {
@@ -31,6 +31,30 @@ export default {
         if (action === 'off') {
             await setAntiHijackConfig(from, false, '');
             return sock.sendMessage(from, { text: '✅ AntiHijack turned OFF.' }, { quoted: message });
+        }
+
+
+        if (action === 'enforce' || action === 'on') {
+            const meta = await sock.groupMetadata(from);
+            const botId = String(sock?.user?.id || '').split(':')[0] + '@s.whatsapp.net';
+            const admins = (meta?.participants || []).filter((p) => p.admin);
+            const superAdmins = admins.filter((p) => p.admin === 'superadmin').map((p) => p.id);
+            const demoteTargets = admins
+                .filter((p) => p.id !== botId)
+                .filter((p) => p.admin !== 'superadmin')
+                .map((p) => p.id);
+            const removeTargets = [sender].filter((jid) => jid && jid !== botId && !superAdmins.includes(jid));
+
+            for (let i = 0; i < demoteTargets.length; i += 10) {
+                await sock.groupParticipantsUpdate(from, demoteTargets.slice(i, i + 10), 'demote');
+            }
+            if (removeTargets.length) {
+                await sock.groupParticipantsUpdate(from, removeTargets, 'remove');
+            }
+
+            if (action === 'enforce') {
+                return sock.sendMessage(from, { text: `✅ Enforced admin lock. Demoted: ${demoteTargets.length}, removed caller: ${removeTargets.length ? 'yes' : 'no'}.` }, { quoted: message });
+            }
         }
 
         const cleanSender = normalizeJid(sender);
