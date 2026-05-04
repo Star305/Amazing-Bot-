@@ -4,6 +4,8 @@ import axios from 'axios';
 import FormData from 'form-data';
 import yts from 'yt-search';
 import { downloadMediaMessage } from '@whiskeysockets/baileys';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 
 const DATA_DIR = path.join(process.cwd(), 'data', 'ai');
 const HISTORY_FILE = path.join(DATA_DIR, 'ai_history.json');
@@ -27,6 +29,7 @@ const CLAUDE_API_BASE_URL = process.env.CLAUDE_API_BASE_URL || 'https://omegatec
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'Claude-pro';
 const CLAUDE_SESSION_FILE = path.join(DATA_DIR, 'claude_sessions.json');
 const PREXZY_BASE_URL = process.env.PREXZY_BASE_URL || 'https://apis.prexzyvilla.site';
+const execFileAsync = promisify(execFile);
 
 const PERSONALITIES = {
     normal:    'You are a helpful, friendly AI assistant. Be concise and clear.',
@@ -393,7 +396,7 @@ async function getAIResponse(uid, settings, history) {
 
 async function sendVoiceReply(sock, from, text, quoted) {
     const cleanText = String(text || '').trim().slice(0, LOW_RESOURCE_MODE ? 320 : 600);
-    if (!cleanText) return;
+    if (!cleanText) return null;
     let voiceBuffer = null;
 
     if (QWEN_API_KEY) {
@@ -422,7 +425,16 @@ async function sendVoiceReply(sock, from, text, quoted) {
         voiceBuffer = Buffer.from(audioRes.data);
     }
 
-    await sock.sendMessage(from, { audio: voiceBuffer, mimetype: 'audio/mpeg', ptt: true }, { quoted });
+    const tmp = path.join('/tmp', `ai_vn_${Date.now()}_${Math.random().toString(16).slice(2)}`);
+    const inMp3 = `${tmp}.mp3`;
+    const outOgg = `${tmp}.ogg`;
+    await fs.writeFile(inMp3, voiceBuffer);
+    await execFileAsync('ffmpeg', ['-y', '-i', inMp3, '-c:a', 'libopus', '-b:a', '48k', '-vbr', 'on', outOgg]);
+    const ogg = await fs.readFile(outOgg);
+    await fs.remove(inMp3);
+    await fs.remove(outOgg);
+
+    return sock.sendMessage(from, { audio: ogg, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted });
 }
 
 const ASSEMBLY_API_KEY = process.env.ASSEMBLY_API_KEY || '22b87c4a57e04c73914de4b75edd05c1';
@@ -579,6 +591,42 @@ async function fetchWebsiteScreenshot(url, quality = 'hd') {
     return Buffer.from(data);
 }
 
+
+async function quickWebSearch(query) {
+    const { data } = await axios.get('https://api.duckduckgo.com/', { params: { q: query, format: 'json', no_html: 1, no_redirect: 1 }, timeout: 45000 });
+    const out = [];
+    if (data?.AbstractText) out.push(`• ${data.AbstractText}`);
+    if (Array.isArray(data?.RelatedTopics)) {
+        for (const t of data.RelatedTopics.slice(0, 5)) {
+            const txt = t?.Text || t?.Topics?.[0]?.Text;
+            if (txt) out.push(`• ${txt}`);
+        }
+    }
+    return out.slice(0, 5).join('\n') || 'No quick result found.';
+}
+
+async function handleInlineTools(sock, from, text, quoted) {
+    const body = String(text || '').trim();
+    if (/^play\s+/i.test(body)) {
+        const query = body.replace(/^play\s+/i, '').trim();
+        const { video, result } = await fetchPlayAudio(query);
+        await sock.sendMessage(from, { audio: { url: result.download }, mimetype: 'audio/mpeg', fileName: `${(result.title || video.title || 'audio').replace(/[\/:*?"<>|]/g, '').slice(0,120)}.mp3`, ptt: false }, { quoted });
+        return await sock.sendMessage(from, { text: `🎵 ${result.title || video.title || 'Song'}\n${video.url}` }, { quoted });
+    }
+    if (/^(img|image|imagine)\s+/i.test(body)) {
+        const prompt = body.replace(/^(img|image|imagine)\s+/i, '').trim();
+        const imagePayload = await qwenImageGeneration(prompt);
+        return await sock.sendMessage(from, { image: imagePayload.buffer || { url: imagePayload.url }, caption: `🖼️ ${prompt}` }, { quoted });
+    }
+    if (/^(google|search|research)\s+/i.test(body)) {
+        const q = body.replace(/^(google|search|research)\s+/i, '').trim();
+        const res = await quickWebSearch(q);
+        return await sock.sendMessage(from, { text: `🔎 Search: ${q}
+
+${res}` }, { quoted });
+    }
+    return null;
+}
 function extractBodyText(message, args) {
     const fromArgs = args.join(' ').trim();
     if (fromArgs) return fromArgs;
@@ -643,6 +691,9 @@ function buildChainHandler(sock, from, uid, sender) {
         }
 
         try {
+            const toolSent = await handleInlineTools(sock, from, userText, replyMessage).catch(() => null);
+            if (toolSent?.key?.id) registerReplyHandler(toolSent.key.id, buildChainHandler(sock, from, uid, sender));
+            if (toolSent) return;
             const settings = await loadSettings(uid);
             const history = await loadHistory(uid);
             history.push({ role: 'user', content: userText });
@@ -651,7 +702,7 @@ function buildChainHandler(sock, from, uid, sender) {
             await saveHistory(uid, history);
             let sent = null;
             if (settings.voiceMode) {
-                await sendVoiceReply(sock, from, aiText, replyMessage);
+                sent = await sendVoiceReply(sock, from, aiText, replyMessage);
             } else {
                 const mentions = replyMessage.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
                 sent = await sendLongText(sock, from, aiText, replyMessage, mentions);
@@ -844,6 +895,9 @@ export default {
             await saveClaudeSession(uid, null);
             return await sock.sendMessage(from, { text: '✅ Settings and memory reset.' }, { quoted: message });
         }
+
+        const inlineTool = await handleInlineTools(sock, from, body, message).catch(() => null);
+        if (inlineTool?.key?.id) { registerReplyHandler(inlineTool.key.id, buildChainHandler(sock, from, uid, sender)); return; }
 
         if (/^(weather|forecast)\s+/i.test(body)) {
             const location = body.replace(/^(weather|forecast)\s+/i, '').trim();
@@ -1087,7 +1141,7 @@ Prompt: ${prompt || 'default'}` }, { quoted: message });
             if (settings.voiceMode || /start responding with vn/i.test(body)) {
                 settings.voiceMode = true;
                 await saveSettings(uid, settings);
-                await sendVoiceReply(sock, from, aiText, message);
+                sent = await sendVoiceReply(sock, from, aiText, message);
             } else {
                 const mentions = message.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
                 sent = await sendLongText(sock, from, aiText, message, mentions);

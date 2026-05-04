@@ -1,12 +1,12 @@
 import { runRelationshipCommand } from './relationshipCore.js';
 
 export default {
-  name: 'joke',
+  name: 'ifoundout',
   category: 'fun',
-  description: 'joke command',
-  usage: 'joke',
+  description: 'ifoundout command',
+  usage: 'ifoundout',
   cooldown: 2,
   async execute(ctx) {
-    return runRelationshipCommand('joke', ctx);
+    return runRelationshipCommand('ifoundout', ctx);
   }
 };

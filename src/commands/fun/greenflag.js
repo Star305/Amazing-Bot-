@@ -1,12 +1,12 @@
 import { runRelationshipCommand } from './relationshipCore.js';
 
 export default {
-  name: 'joke',
+  name: 'greenflag',
   category: 'fun',
-  description: 'joke command',
-  usage: 'joke',
+  description: 'greenflag command',
+  usage: 'greenflag',
   cooldown: 2,
   async execute(ctx) {
-    return runRelationshipCommand('joke', ctx);
+    return runRelationshipCommand('greenflag', ctx);
   }
 };

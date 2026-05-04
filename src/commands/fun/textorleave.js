@@ -1,12 +1,12 @@
 import { runRelationshipCommand } from './relationshipCore.js';
 
 export default {
-  name: 'joke',
+  name: 'textorleave',
   category: 'fun',
-  description: 'joke command',
-  usage: 'joke',
+  description: 'textorleave command',
+  usage: 'textorleave',
   cooldown: 2,
   async execute(ctx) {
-    return runRelationshipCommand('joke', ctx);
+    return runRelationshipCommand('textorleave', ctx);
   }
 };

@@ -10,13 +10,20 @@ async function getProfilePic(sock, jid) {
     catch { return null; }
 }
 
-function renderWelcomeTemplate(template = '', participant = '', groupName = 'the group') {
+function renderWelcomeTemplate(template = '', participant = '', groupName = 'the group', members=0, admins=0) {
     const num = normNum(participant) || 'user';
     const mention = `@${num}`;
+    const now = new Date();
+    const date = now.toLocaleDateString('en-GB');
+    const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     return String(template || '')
         .replace(/&getpp|\{pp\}/gi, '')
         .replace(/@user|\{user\}|&mention|\bmentions user\b/gi, mention)
         .replace(/@group|\{group\}|\(group name\)|&group/gi, groupName)
+        .replace(/@members|\{members\}/gi, String(members))
+        .replace(/@admins|\{admins\}/gi, String(admins))
+        .replace(/@date|\{date\}/gi, date)
+        .replace(/@time|\{time\}/gi, time)
         .replace(/\n{3,}/g, '\n\n')
         .trim() || `👋 Welcome ${mention} to ${groupName}!`;
 }
@@ -29,9 +36,11 @@ export default async function handleGroupJoin(sock, groupUpdate) {
         const groupName = meta.subject || 'the group';
         const savedGroup = await getGroup(groupId);
         const groupLang = savedGroup?.settings?.language || 'en';
+        const adminCount = (meta.participants || []).filter(p => p.admin).length;
+        const memberCount = (meta.participants || []).length;
         const welcomeEnabled = savedGroup?.settings?.welcome?.enabled;
         const welcomeTemplate = savedGroup?.settings?.welcome?.message
-            || '👋 Welcome @user to @group!\n\nKindly do intro:\n• Pics\n• Age\n• Location\n\n📌 Please read the group description.';
+            || `┏━〔 👋 Welcome by Escanor 👋 〕━━━━━┓\n┃ 👤 New member: @user\n┃ 👥 Group: @group\n┃ 📊 Members: @members\n┃ 👑 Admins: @admins\n┃ 📅 Date: @date\n┃ ⏰ Time: @time\n┃ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n┃ "Welcome among us, @user.\n┃ I am Escanor, Lion of Pride.\n┃ You now walk in my domain.\n┃ Respect the rules, or face exile."\n┃ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n┃ 🔥 Domain Rules:\n┃ • Respect everyone\n┃ • No forbidden links/content\n┃ • Enjoy, but keep it classy\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛`; 
 
         for (const participant of participants) {
             if (await isBanned(groupId, participant)) {
@@ -50,7 +59,7 @@ export default async function handleGroupJoin(sock, groupUpdate) {
             try {
                 const ppUrl = await getProfilePic(sock, participant);
                 const text = await translateTextIfNeeded(
-                    renderWelcomeTemplate(welcomeTemplate, participant, groupName),
+                    renderWelcomeTemplate(welcomeTemplate, participant, groupName, memberCount, adminCount),
                     groupLang
                 );
 
