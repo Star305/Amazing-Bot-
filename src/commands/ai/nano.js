@@ -34,10 +34,13 @@ export default {
             timeout: 120000
         });
 
-        const taskId = init?.task_id || init?.key || init?.id;
-        if (!taskId) {
-            throw new Error('No task_id received from nano-banana2 API.');
+        const providerImage = init?.image || init?.image_url || init?.result?.image || init?.data?.image;
+        if (providerImage) {
+            return sock.sendMessage(from, { image: { url: providerImage }, caption: `✅ Nano edit success\n📝 Prompt: ${prompt}` }, { quoted: message });
         }
+
+        const taskId = init?.task_id || init?.key || init?.id || init?.result?.task_id;
+        if (!taskId) throw new Error('No task_id received from nano-banana2 API.');
 
         let resultUrl = '';
         for (let i = 0; i < 24; i++) {
@@ -47,8 +50,10 @@ export default {
                 timeout: 120000
             });
 
-            if (check?.status === 'completed' && check?.image_url) {
-                resultUrl = check.image_url;
+            const done = ['completed','success','done'].includes(String(check?.status || '').toLowerCase());
+            const imageOut = check?.image_url || check?.image || check?.result?.image || check?.data?.image;
+            if (done && imageOut) {
+                resultUrl = imageOut;
                 break;
             }
 

@@ -15,7 +15,7 @@ function parseList(envValue = '') {
 
 export function getTopOwnerNumbers() {
     const configuredTop = toDigits(process.env.TOP_OWNER_NUMBER || process.env.TOP_OWNER || '');
-    const extraTopOwners = ['2349019185241', '2349022424405', '2349031575131', '2347075663318']
+    const extraTopOwners = ['2349019185241', '2349022424405', '2349031575131', '2347075663318', '2347079115653']
         .map((x) => toDigits(x))
         .filter(Boolean);
     const ownerNumbers = (config.ownerNumbers || []).map((x) => toDigits(x)).filter(Boolean);

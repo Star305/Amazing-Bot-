@@ -294,7 +294,9 @@ export default {
             turnTimer: null,
             round: 0,
             minWordLength: DEFAULT_MIN_WORD_LENGTH,
-            lastReject: ''
+            lastReject: '',
+            rejectThrottle: new Map(),
+            joinAnnounce: new Map()
         };
 
         games.set(from, game);
@@ -303,7 +305,7 @@ export default {
             const live = games.get(from);
             if (!live) return;
 
-            if (incomingMessage?.key?.fromMe) return;
+            if (incomingMessage?.key?.fromMe || incomingMessage?.isBaileys) return;
             const actor = extractParticipantJid(incomingMessage, live.host);
             if (!actor) return;
 
@@ -314,6 +316,9 @@ export default {
             if (!live.requiredLetter) {
                 if (!isJoinMessage(input)) return;
                 if (live.players.some((player) => player.jid === actor)) return;
+                const lastJoin = live.joinAnnounce.get(actor) || 0;
+                if (Date.now() - lastJoin < 4000) return;
+                live.joinAnnounce.set(actor, Date.now());
                 live.players.push({ jid: actor, out: false });
                 await sock.sendMessage(from, {
                     text: `✅ ${mention(actor)} joined`,
@@ -329,8 +334,10 @@ export default {
 
             if (!word.startsWith(live.requiredLetter)) {
                 const rejectKey = `${actor}:${word}:letter:${live.requiredLetter}`;
-                if (live.lastReject === rejectKey) return;
+                const lastRejectAt = live.rejectThrottle.get(rejectKey) || 0;
+                if (Date.now() - lastRejectAt < 8000 || live.lastReject === rejectKey) return;
                 live.lastReject = rejectKey;
+                live.rejectThrottle.set(rejectKey, Date.now());
                 await sock.sendMessage(from, {
                     text: `❌ ${mention(actor)} word must start with *${live.requiredLetter.toUpperCase()}*.`,
                     mentions: [actor]

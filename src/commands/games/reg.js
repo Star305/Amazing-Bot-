@@ -10,9 +10,11 @@ export default {
   name:'reg', aliases:['register'], category:'games', description:'Register for games db', usage:'reg Name.Age', cooldown:3,
   async execute({sock,message,from,args,sender}){
     const input=args.join(' ').trim();
-    const m=input.match(/^([^\.]+)\.(\d{1,3})$/);
+    const m=input.match(/^([^\.]+)\.(\d{1,2})$/);
     if(!m) return sock.sendMessage(from,{text:'Usage: .reg Name.Age\nExample: .reg Omegatech.50'},{quoted:message});
     const name=m[1].trim(); const age=Number(m[2]);
+    if (!name) return sock.sendMessage(from,{text:'❌ Name cannot be empty.'},{quoted:message});
+    if (age < 1 || age > 50) return sock.sendMessage(from,{text:'❌ Age must be between 1 and 50.'},{quoted:message});
     const users=load();
     if(users.some(u=>u.jid===sender)) return sock.sendMessage(from,{text:'✅ You are already registered.'},{quoted:message});
     const sn=crypto.randomBytes(8).toString('hex');

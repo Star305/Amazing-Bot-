@@ -47,10 +47,19 @@ export default {
             const { data } = await axios.get('https://api.nekosapi.com/v4/images/random', { timeout: 12000 });
             if (data?.url) {
                 const imgUrl = Array.isArray(data) ? data[0]?.url : data?.url;
-            if (imgUrl) return sock.sendMessage(from, { image: { url: imgUrl }, caption }, { quoted: message });
+                if (imgUrl) await sock.sendMessage(from, { image: { url: imgUrl }, caption }, { quoted: message });
+                else await sock.sendMessage(from, { text: caption }, { quoted: message });
+            } else {
+                await sock.sendMessage(from, { text: caption }, { quoted: message });
             }
         } catch {}
 
-        return sock.sendMessage(from, { text: caption }, { quoted: message });
+        try {
+            const { data: song } = await axios.get(`https://apis.davidcyril.name.ng/play?query=${encodeURIComponent('random music')}`, { timeout: 20000 });
+            if (song?.status && song?.result?.download_url && String(song?.creator||'').toLowerCase()==='david cyril') {
+                await sock.sendMessage(from, { audio: { url: song.result.download_url }, mimetype: 'audio/mpeg', ptt: false }, { quoted: message });
+            }
+        } catch {}
+        return null;
     }
 };

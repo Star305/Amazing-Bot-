@@ -1,7 +1,4 @@
 import axios from 'axios';
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
 import yts from 'yt-search';
 
 const YOUTUBE_URL_RE = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//i;
@@ -13,77 +10,29 @@ function bareJid(jid = '') {
   return String(jid).split(':')[0];
 }
 
-async function downloadAndSend(url, type, sock, chatId, quotedMessage) {
-  let tmpFilePath = '';
-  try {
-    await sock.sendMessage(chatId, {
-      text: `📥 Initializing ${type} download...\nPlease wait.`
+async function downloadAndSend(urlOrQuery, type, sock, chatId, quotedMessage) {
+  const apiUrl = `https://apis.davidcyril.name.ng/play?query=${encodeURIComponent(urlOrQuery)}`;
+  const { data } = await axios.get(apiUrl, { timeout: 45000 });
+  if (!data?.status || !data?.result) throw new Error('No media result from API.');
+  if (String(data?.creator || '').toLowerCase() !== 'david cyril') throw new Error('Untrusted provider response.');
+  const result = data.result;
+  const mediaUrl = type === 'audio' ? result.download_url : result.video_url;
+  if (!mediaUrl) throw new Error('Download link missing from provider.');
+
+  if (type === 'audio') {
+    return sock.sendMessage(chatId, {
+      audio: { url: mediaUrl },
+      mimetype: 'audio/mpeg',
+      fileName: `${(result.title || 'song').slice(0,60)}.mp3`,
+      ptt: false
     }, { quoted: quotedMessage });
-
-    const format = type === 'audio' ? 'mp3' : '480';
-    const apiUrl = `https://p.savenow.to/ajax/download.php?copyright=0&format=${format}&url=${encodeURIComponent(url)}&api=dfaxaxcb6d76f2f6a9894gjkege8a4ab232222`;
-
-    const response = await axios.get(apiUrl, { timeout: 30000 });
-    const resData = response.data || {};
-
-    if (!resData.success || !resData.progress_url) {
-      throw new Error('API failed to provide a progress URL.');
-    }
-
-    const title = resData.info?.title || resData.title || 'download';
-    let downloadUrl = null;
-
-    for (let i = 0; i < 30; i++) {
-      const progressRes = await axios.get(resData.progress_url, { timeout: 20000 });
-      const progressData = progressRes.data || {};
-
-      if (progressData.download_url) {
-        downloadUrl = progressData.download_url;
-        break;
-      }
-      if (progressData.url) {
-        downloadUrl = progressData.url;
-        break;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 2500));
-    }
-
-    if (!downloadUrl) {
-      throw new Error('Timed out waiting for the download link to generate. Please try again.');
-    }
-
-    const ext = type === 'audio' ? 'mp3' : 'mp4';
-    const safeTitle = title.replace(/[<>:"/\\|?*\x00-\x1F]/g, '').slice(0, 40) || `youtube_${Date.now()}`;
-    tmpFilePath = path.join(os.tmpdir(), `${Date.now()}.${ext}`);
-
-    const writer = fs.createWriteStream(tmpFilePath);
-    const stream = await axios({ url: downloadUrl, method: 'GET', responseType: 'stream', timeout: 120000 });
-    stream.data.pipe(writer);
-
-    await new Promise((resolve, reject) => {
-      writer.on('finish', resolve);
-      writer.on('error', reject);
-    });
-
-    if (type === 'audio') {
-      await sock.sendMessage(chatId, {
-        audio: { url: tmpFilePath },
-        mimetype: 'audio/mpeg',
-        fileName: `${safeTitle}.mp3`,
-        ptt: false
-      }, { quoted: quotedMessage });
-      return;
-    }
-
-    await sock.sendMessage(chatId, {
-      video: { url: tmpFilePath },
-      mimetype: 'video/mp4',
-      fileName: `${safeTitle}.mp4`,
-      caption: `📺 _${title}_`
-    }, { quoted: quotedMessage });
-  } finally {
-    if (tmpFilePath && fs.existsSync(tmpFilePath)) fs.unlink(tmpFilePath, () => {});
   }
+
+  return sock.sendMessage(chatId, {
+    video: { url: mediaUrl },
+    mimetype: 'video/mp4',
+    caption: `🎬 ${result.title || 'Video'}\n⏱ ${result.duration || 'N/A'}\n👀 ${result.views || 0}`
+  }, { quoted: quotedMessage });
 }
 
 export default {

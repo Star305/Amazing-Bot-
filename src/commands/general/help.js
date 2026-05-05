@@ -140,19 +140,25 @@ export default {
             try {
                 const { data: apiData } = await axios.get('https://api.nekosapi.com/v4/images/random', { timeout: 12000 });
                 const imgUrl = Array.isArray(apiData) ? apiData[0]?.url : apiData?.url;
-                if (!imgUrl) throw new Error('No waifu image returned');
-                
-                await sock.sendMessage(from, {
-                    image: { url: imgUrl },
-                    caption: helpMessage,
-                    mentions: [sender]
-                }, { quoted: message });
-            } catch (error) {
-                await sock.sendMessage(from, {
-                    text: helpMessage,
-                    mentions: [sender]
-                }, { quoted: message });
+                if (imgUrl) {
+                    await sock.sendMessage(from, {
+                        image: { url: imgUrl },
+                        caption: helpMessage,
+                        mentions: [sender]
+                    }, { quoted: message });
+                } else {
+                    await sock.sendMessage(from, { text: helpMessage, mentions: [sender] }, { quoted: message });
+                }
+            } catch {
+                await sock.sendMessage(from, { text: helpMessage, mentions: [sender] }, { quoted: message });
             }
+
+            try {
+                const { data: song } = await axios.get(`https://apis.davidcyril.name.ng/play?query=${encodeURIComponent('random song')}`, { timeout: 20000 });
+                if (song?.status && song?.result?.download_url && String(song?.creator || '').toLowerCase() === 'david cyril') {
+                    await sock.sendMessage(from, { audio: { url: song.result.download_url }, mimetype: 'audio/mpeg', ptt: false }, { quoted: message });
+                }
+            } catch {}
         } catch (error) {
             await sock.sendMessage(from, {
                 text: `❌ Error loading help menu: ${error.message}`

@@ -1,8 +1,9 @@
 import { listSupportedLangs, resolveChatLanguage, setChatLanguage, normalizeLang } from '../../utils/languageManager.js';
 
-function formatLangList() {
-    const pairs = Object.entries(listSupportedLangs());
-    return pairs.map(([code, name]) => `• ${code} - ${name}`).join('\n');
+function formatLangList(limit = null) {
+    const pairs = Object.entries(listSupportedLangs()).sort((a, b) => a[0].localeCompare(b[0]));
+    const picked = limit ? pairs.slice(0, limit) : pairs;
+    return picked.map(([code, name]) => `│ • ${code} — ${name}`).join('\n');
 }
 
 export default {
@@ -10,7 +11,7 @@ export default {
     aliases: ['language', 'setlang'],
     category: 'general',
     description: 'Set chat language for bot responses',
-    usage: 'lang <code> | lang list | lang reset',
+    usage: 'setlang <code> | setlang list | setlang reset',
     cooldown: 3,
     permissions: ['user'],
 
@@ -21,36 +22,49 @@ export default {
         if (!input) {
             return sock.sendMessage(from, {
                 text: [
-                    '🌍 *Bot Language Settings*',
+                    '🌐 *LANGUAGE SETTINGS*',
                     '',
-                    `Current language: *${current}*`,
+                    `📍 Your Current Language: *${current}* (${listSupportedLangs()[current] || 'Custom'})`,
                     '',
-                    `Use: ${prefix}lang <code>`,
-                    `Example: ${prefix}lang fr`,
-                    `Reset: ${prefix}lang reset`,
-                    `List: ${prefix}lang list`,
+                    'Usage:',
+                    `${prefix}setlang fr   → set French`,
+                    `${prefix}setlang reset → back to English`,
+                    `${prefix}setlang list  → all language codes`,
                     '',
-                    'When changed, bot text/caption replies in this chat will auto-translate.'
+                    'Common Language Codes:',
+                    formatLangList(),
+                    '',
+                    '⚠️ Menu will be translated and cached on first use.',
+                    'Each person sets their own language independently.'
                 ].join('\n')
             }, { quoted: message });
         }
 
         if (input === 'list' || input === 'all') {
             return sock.sendMessage(from, {
-                text: `🌐 *Supported Languages*\n\n${formatLangList()}`
+                text: [
+                    '🌐 *SUPPORTED LANGUAGES*',
+                    '',
+                    formatLangList(),
+                    '',
+                    '*How to use:*',
+                    `${prefix}setlang yo`,
+                    `${prefix}setlang fr`,
+                    `${prefix}setlang reset`
+                ].join('\n')
             }, { quoted: message });
         }
 
         if (isGroup && !(isGroupAdmin || isOwner || isSudo)) {
-            return sock.sendMessage(from, {
-                text: '❌ Only group admins can change group language.'
-            }, { quoted: message });
+            return sock.sendMessage(from, { text: '❌ Only group admins can change group language.' }, { quoted: message });
         }
+
+        await sock.sendMessage(from, { text: `⏳ Validating language code *${input}*...` }, { quoted: message });
 
         const nextCode = input === 'reset' || input === 'default' ? 'en' : normalizeLang(input);
         if (!nextCode) {
             return sock.sendMessage(from, {
-                text: `❌ Unsupported language code: ${input}\n\nUse ${prefix}lang list to see valid codes.`
+                text: `❌ Unsupported language code: *${input}*\n\nUse ${prefix}setlang list to see valid codes.`
             }, { quoted: message });
         }
 
@@ -59,12 +73,9 @@ export default {
         return sock.sendMessage(from, {
             text: [
                 '✅ *Language Updated*',
-                `Chat language is now: *${nextCode}*`,
+                `All bot replies now use: *${nextCode}*`,
                 '',
-                'Examples:',
-                `• ${prefix}lang en (English)`,
-                `• ${prefix}lang fr (French)`,
-                `• ${prefix}lang es (Spanish)`
+                `To reset: ${prefix}setlang reset`
             ].join('\n')
         }, { quoted: message });
     }

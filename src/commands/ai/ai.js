@@ -430,15 +430,24 @@ async function sendVoiceReply(sock, from, text, quoted) {
     const outOgg = `${tmp}.ogg`;
     await fs.writeFile(inMp3, voiceBuffer);
     try {
-        await execFileAsync('ffmpeg', ['-y', '-f', 'mp3', '-analyzeduration', '100M', '-probesize', '100M', '-i', inMp3, '-vn', '-ac', '1', '-ar', '48000', '-c:a', 'libopus', '-b:a', '48k', '-vbr', 'on', outOgg]);
-    } catch (primaryErr) {
-        await execFileAsync('ffmpeg', ['-y', '-i', inMp3, '-vn', '-ac', '1', '-ar', '48000', '-c:a', 'libopus', '-b:a', '48k', outOgg]);
-    }
-    const ogg = await fs.readFile(outOgg);
-    await fs.remove(inMp3);
-    await fs.remove(outOgg);
+        const stat = await fs.stat(inMp3);
+        if (!stat.size || stat.size < 1024) throw new Error('TTS audio was empty or too small.');
 
-    return sock.sendMessage(from, { audio: ogg, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted });
+        try {
+            await execFileAsync('ffmpeg', ['-y', '-err_detect', 'ignore_err', '-f', 'mp3', '-analyzeduration', '150M', '-probesize', '150M', '-i', inMp3, '-vn', '-ac', '1', '-ar', '48000', '-c:a', 'libopus', '-b:a', '48k', '-vbr', 'on', outOgg]);
+        } catch {
+            await execFileAsync('ffmpeg', ['-y', '-err_detect', 'ignore_err', '-i', inMp3, '-vn', '-ac', '1', '-ar', '48000', '-c:a', 'libopus', '-b:a', '48k', outOgg]);
+        }
+
+        const ogg = await fs.readFile(outOgg);
+        if (!ogg?.length) throw new Error('Voice conversion produced empty output.');
+        return await sock.sendMessage(from, { audio: ogg, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted });
+    } catch {
+        return await sock.sendMessage(from, { audio: voiceBuffer, mimetype: 'audio/mpeg', ptt: false }, { quoted });
+    } finally {
+        await fs.remove(inMp3).catch(() => {});
+        await fs.remove(outOgg).catch(() => {});
+    }
 }
 
 const ASSEMBLY_API_KEY = process.env.ASSEMBLY_API_KEY || '22b87c4a57e04c73914de4b75edd05c1';

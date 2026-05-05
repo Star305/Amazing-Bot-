@@ -3,9 +3,10 @@ import { getGroup, updateGroup } from '../models/Group.js';
 import { getUser, updateUser } from '../models/User.js';
 
 const SUPPORTED_LANGS = {
-    en: 'English', fr: 'French', es: 'Spanish', de: 'German', it: 'Italian', pt: 'Portuguese',
-    ar: 'Arabic', hi: 'Hindi', id: 'Indonesian', sw: 'Swahili', tr: 'Turkish', ru: 'Russian',
-    ja: 'Japanese', ko: 'Korean', zh: 'Chinese', nl: 'Dutch', pl: 'Polish', vi: 'Vietnamese'
+    en: 'English', af: 'Afrikaans', ar: 'Arabic', zh: 'Chinese', nl: 'Dutch', fr: 'French', de: 'German',
+    hi: 'Hindi', id: 'Indonesian', it: 'Italian', ja: 'Japanese', ko: 'Korean', ms: 'Malay',
+    pt: 'Portuguese', ru: 'Russian', es: 'Spanish', sw: 'Swahili', th: 'Thai', tr: 'Turkish',
+    ur: 'Urdu', vi: 'Vietnamese', yo: 'Yoruba', zu: 'Zulu', pl: 'Polish'
 };
 
 const cache = new Map();
