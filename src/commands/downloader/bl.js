@@ -36,20 +36,22 @@ export default {
                 const dl = await axios.get(DL_API, { params: { url: pick.videoUrl }, timeout: 120000 });
                 const payload = dl?.data || {};
                 const mediaList = Array.isArray(payload?.media) ? payload.media.filter((m) => m?.url) : [];
-                const selected = wantedQ ? mediaList.find((m) => String(m.quality || '').toLowerCase() === wantedQ) : mediaList[0];
-                const finalUrl = selected?.url || payload?.direct || mediaList[0]?.url;
+                const selected = wantedQ ? mediaList.find((m) => String(m.quality || '').toLowerCase() === wantedQ) : null;
+                const videoOnly = mediaList.filter((m) => !String(m.quality || '').toLowerCase().includes('audio'));
+                const best = selected || videoOnly[0] || mediaList[0];
+                const finalUrl = best?.url || payload?.direct || mediaList[0]?.url;
                 if (!finalUrl) return sock.sendMessage(from, { text: '❌ Download link not available.' }, { quoted: replyMessage });
-                const fileName = `${(payload.title || pick.title || 'bilibili').replace(/[\\/:*?"<>|]/g, '').slice(0, 80)}_${selected?.quality || 'auto'}.mp4`;
+                const fileName = `${(payload.title || pick.title || 'bilibili').replace(/[\\/:*?"<>|]/g, '').slice(0, 80)}_${best?.quality || 'auto'}.mp4`;
                     try {
                         await sock.sendMessage(from, {
-                            document: { url: finalUrl },
+                            video: { url: finalUrl },
                             mimetype: 'video/mp4',
                             fileName,
-                            caption: `🎬 ${payload.title || pick.title}\n🎞 Quality: ${selected?.quality || 'auto'}`
+                            caption: `🎬 ${payload.title || pick.title}\n🎞 Quality: ${best?.quality || 'auto'}`
                         }, { quoted: replyMessage });
                     } catch {
                         await sock.sendMessage(from, {
-                            document: { url: pick.videoUrl },
+                            video: { url: pick.videoUrl },
                             mimetype: 'video/mp4',
                             fileName
                         }, { quoted: replyMessage });

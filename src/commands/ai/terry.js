@@ -126,10 +126,13 @@ export default {
             if (/^bugs\s+/i.test(input)) {
                 const code = input.replace(/^bugs\s+/i, '').trim();
                 if (!code) return sock.sendMessage(from, { text: '❌ Usage: terry bugs <code>' }, { quoted: message });
-                const { data } = await axios.get('https://apis.prexzyvilla.site/ai/detectbugs', {
-                    params: { code },
-                    timeout: 120000
-                });
+                let data = null;
+                try {
+                    ({ data } = await axios.get('https://apis.prexzyvilla.site/ai/detectbugs', { params: { code }, timeout: 120000 }));
+                } catch (e) {
+                    if (![404, 410].includes(e?.response?.status)) throw e;
+                    ({ data } = await axios.get('https://apis.prexzyvilla.site/ai/gpt-5', { params: { text: `Find bugs in this code and explain fixes:\n${code}` }, timeout: 120000 }));
+                }
                 const result = data?.result || data?.response || data?.data || data;
                 return sock.sendMessage(from, { text: `🐞 Bug Analysis\n\n${typeof result === 'string' ? result : JSON.stringify(result, null, 2).slice(0, 3500)}` }, { quoted: message });
             }

@@ -73,7 +73,13 @@ export default {
             initUrl += `?${params.toString()}`;
 
             const { data: init } = await axios.get(initUrl, { timeout: 120000 });
-            const taskId = init?.task_id || init?.id || init?.key;
+            const directOut = init?.image || init?.image_url || init?.result?.image || init?.data?.image;
+            if (directOut) {
+                nanoProSessions.delete(userId);
+                return sock.sendMessage(from, { image: { url: directOut }, caption: `✅ Nano-banana-pro success\n📝 Prompt: ${finalPrompt}` }, { quoted: message });
+            }
+
+            const taskId = init?.task_id || init?.id || init?.key || init?.result?.task_id;
             if (!taskId) throw new Error('No task_id returned from nanobana-pro-v3.');
 
             let resultUrl = '';
@@ -84,8 +90,10 @@ export default {
                     timeout: 120000
                 });
 
-                if (check?.status === 'completed' && check?.image_url) {
-                    resultUrl = check.image_url;
+                const done = ['completed','success','done'].includes(String(check?.status || '').toLowerCase());
+                const imageOut = check?.image_url || check?.image || check?.result?.image || check?.data?.image;
+                if (done && imageOut) {
+                    resultUrl = imageOut;
                     break;
                 }
 
