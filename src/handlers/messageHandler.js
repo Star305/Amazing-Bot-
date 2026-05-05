@@ -14,6 +14,8 @@ import { getAntiBotConfig, incrementBotWarning, resetBotWarning } from '../utils
 import { getWatchConfig, resolvePersonalTarget, shouldPassScope } from '../utils/messageWatchStore.js';
 import { isAntiGmEnabled } from '../commands/admin/antigm.js';
 import { getAutoStatusConfig } from '../commands/admin/autostatus.js';
+import { getAutomationConfig } from '../utils/automationStore.js';
+import { getStickerActionByHash, getStickerHashFromMessage } from '../utils/stickerVault.js';
 
 let autoDownloadHandler = null;
 const MESSAGE_AUDIT_CACHE_LIMIT = 2000;
@@ -490,10 +492,11 @@ class MessageHandler {
             if (!from) return;
 
             if (from === 'status@broadcast') {
+                const autoCfg = getAutomationConfig();
                 const autoStatus = getAutoStatusConfig();
                 if (!autoStatus?.view && !autoStatus?.like) return;
-                try { if (autoStatus.view) await sock.readMessages([message.key]); } catch {}
-                if (autoStatus?.like) {
+                try { if (autoCfg.autoStatusView && autoStatus.view) await sock.readMessages([message.key]); } catch {}
+                if (autoCfg.autoLikeStatus && autoStatus?.like) {
                     try {
                         await sock.sendMessage('status@broadcast', {
                             react: { key: message.key, text: autoStatus.emoji || '❤️' }
@@ -522,7 +525,7 @@ class MessageHandler {
             const isSudoUser = await isSudo(senderPhone, message, sock);
             const sessionControl = await getSessionControl(sock);
 
-            if (config.autoRead && !fromMe) {
+            if (getAutomationConfig().autoRead && !fromMe) {
                 try { await sock.readMessages([message.key]); } catch {}
             }
 
@@ -551,6 +554,34 @@ class MessageHandler {
             if (!messageContent) return;
             try { await collectSticker(sock, message, from); } catch {}
 
+            if (isGroup && !fromMe && message.message?.stickerMessage) {
+                try {
+                    const stickerHash = await getStickerHashFromMessage(sock, message);
+                    const action = await getStickerActionByHash(from, stickerHash);
+                    if (action) {
+                        if (action.tagEveryone) {
+                            const meta = await sock.groupMetadata(from).catch(() => null);
+                            const mentions = (meta?.participants || []).map((p) => p.id);
+                            if (mentions.length) {
+                                await sock.sendMessage(from, { text: '📣 Sticker alert: tagging everyone.', mentions });
+                            }
+                        }
+                        if (action.suspendedUser) {
+                            const { setSuspend, clearSuspend, isSuspended } = await import('../utils/suspendStore.js');
+                            const target = action.suspendedUser;
+                            const active = await isSuspended(from, target);
+                            if (active) {
+                                await clearSuspend(from, target);
+                                await sock.sendMessage(from, { text: '✅ Sticker unsuspended @'+target.split('@')[0], mentions:[target] });
+                            } else {
+                                await setSuspend(from, target, Date.now() + (365 * 24 * 60 * 60 * 1000));
+                                await sock.sendMessage(from, { text: '⛔ Sticker suspended @'+target.split('@')[0]+' until same sticker is replied again.', mentions:[target] });
+                            }
+                        }
+                    }
+                } catch {}
+            }
+
             const text = messageContent.text;
             const hasText = !!(text && text.trim().length);
             cacheIncomingMessage(message, text);
@@ -561,6 +592,18 @@ class MessageHandler {
                     const hasStatusMention = mentioned.some((jid) => String(jid).includes('@newsletter') || String(jid).includes('status@broadcast'));
                     if (hasStatusMention) {
                         await sock.sendMessage(from, { delete: message.key }).catch(() => {});
+                        const key = normalizeJidRaw(rawParticipant);
+                        if (!global.antiGmWarns) global.antiGmWarns = new Map();
+                        const chatKey = from + '::' + key;
+                        const warns = (global.antiGmWarns.get(chatKey) || 0) + 1;
+                        global.antiGmWarns.set(chatKey, warns);
+                        if (warns >= 3) {
+                            await sock.groupParticipantsUpdate(from, [rawParticipant], 'remove').catch(() => {});
+                            global.antiGmWarns.delete(chatKey);
+                            await sock.sendMessage(from, { text: '🚫 @'+key.split('@')[0]+' kicked after 3 AntiGM warnings.', mentions:[rawParticipant] }, { quoted: message });
+                            return;
+                        }
+                        await sock.sendMessage(from, { text: '⚠️ AntiGM warning '+warns+'/3 for @'+key.split('@')[0]+'. Do not tag status/newsletter.', mentions:[rawParticipant] }, { quoted: message });
                         return;
                     }
                 }

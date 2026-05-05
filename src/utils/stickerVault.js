@@ -45,3 +45,45 @@ export async function getRandomSticker(chatId) {
     if (!await fs.pathExists(filePath)) return null;
     return fs.readFile(filePath);
 }
+
+
+export async function getStickerHashFromMessage(sock, message) {
+    try {
+        const sticker = message.message?.extendedTextMessage?.contextInfo?.quotedMessage?.stickerMessage || message.message?.stickerMessage;
+        if (!sticker) return null;
+        const buffer = await sock.downloadMediaMessage({ message: { stickerMessage: sticker } });
+        if (!buffer?.length) return null;
+        return crypto.createHash('md5').update(buffer).digest('hex');
+    } catch { return null; }
+}
+
+export async function setStickerAction(chatId, hash, action = {}) {
+    const meta = await loadMeta();
+    if (!meta.actions) meta.actions = {};
+    if (!meta.actions[chatId]) meta.actions[chatId] = {};
+    meta.actions[chatId][hash] = {
+        tagEveryone: !!action.tagEveryone,
+        suspendedUser: action.suspendedUser || null
+    };
+    await saveMeta(meta);
+}
+
+export async function getStickerActionByHash(chatId, hash) {
+    if (!hash) return null;
+    const meta = await loadMeta();
+    return meta.actions?.[chatId]?.[hash] || null;
+}
+
+export async function listStickerActions(chatId) {
+    const meta = await loadMeta();
+    const data = meta.actions?.[chatId] || {};
+    return Object.entries(data).map(([hash, action]) => ({ hash, ...action }));
+}
+
+export async function deleteStickerAction(chatId, hash) {
+    const meta = await loadMeta();
+    if (meta.actions?.[chatId]?.[hash]) {
+        delete meta.actions[chatId][hash];
+        await saveMeta(meta);
+    }
+}
