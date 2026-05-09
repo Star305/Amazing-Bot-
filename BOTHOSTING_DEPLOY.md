@@ -1,6 +1,6 @@
 # 🚀 Bothosting.net Deployment Guide
 
-## Complete Guide for Deploying Amazing Bot to Bothosting.net
+## Complete Guide for Deploying Asta Bot to Bothosting.net
 
 ---
 
@@ -21,14 +21,14 @@ Before deploying to Bothosting.net, ensure you have:
 
 Create a `.zip` file of your project:
 ```bash
-zip -r amazing-bot.zip . -x "node_modules/*" ".git/*" "cache/*" "logs/*" "temp/*"
+zip -r asta-bot.zip . -x "node_modules/*" ".git/*" "cache/*" "logs/*" "temp/*"
 ```
 
 ### 2. Upload to Bothosting.net
 
 1. Log in to your Bothosting.net dashboard
 2. Create a new server (Node.js type)
-3. Upload the `amazing-bot.zip` file
+3. Upload the `asta-bot.zip` file
 4. Extract the archive in the file manager
 
 ### 3. Configure Environment Variables
@@ -39,7 +39,7 @@ In Bothosting.net dashboard, set these environment variables:
 ```
 PORT=5000
 NODE_ENV=production
-BOT_NAME=Amazing Bot
+BOT_NAME=Asta Bot
 PREFIX=.
 PUBLIC_MODE=true
 ```
@@ -115,7 +115,7 @@ PORT=5000
 NODE_ENV=production
 
 # Bot Identity
-BOT_NAME=Amazing Bot
+BOT_NAME=Asta Bot
 PREFIX=.
 BOT_VERSION=1.0.0
 
@@ -340,7 +340,7 @@ After deployment, these features will work:
 
 **🎉 Deployment Complete! 🎉**
 
-Your Amazing Bot is now live on Bothosting.net!
+Your Asta Bot is now live on Bothosting.net!
 
 **Created with ❤️ by Ilom**
 

@@ -58,7 +58,7 @@ export default {
             const truncatedExtract = extract.length > 800 ? extract.substring(0, 800) + '...' : extract;
 
             // Simplified text without boxes
-            let wikiText = `📚 *Wikipedia: ${pageTitle}*\n\n🔗 Link: ${pageUrl}\n🌐 Language: English\n\n📝 *Summary:*\n${truncatedExtract}\n\n💡 *Info:*\n📷 Image: ${imageUrl ? 'Included' : 'Not available'}\n📊 Length: ${extract.length > 800 ? 'Truncated' : 'Full'}\n🔍 More: Visit link above\n\n💫 *Ilom Bot*`;
+            let wikiText = `📚 *Wikipedia: ${pageTitle}*\n\n🔗 Link: ${pageUrl}\n🌐 Language: English\n\n📝 *Summary:*\n${truncatedExtract}\n\n💡 *Info:*\n📷 Image: ${imageUrl ? 'Included' : 'Not available'}\n📊 Length: ${extract.length > 800 ? 'Truncated' : 'Full'}\n🔍 More: Visit link above\n\n💫 *Asta Bot*`;
 
             if (imageUrl) {
                 await sock.sendMessage(from, {

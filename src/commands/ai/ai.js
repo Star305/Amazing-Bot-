@@ -434,7 +434,7 @@ async function sendVoiceReply(sock, from, text, quoted) {
         if (!stat.size || stat.size < 1024) throw new Error('TTS audio was empty or too small.');
 
         try {
-            await execFileAsync('ffmpeg', ['-y', '-err_detect', 'ignore_err', '-f', 'mp3', '-analyzeduration', '150M', '-probesize', '150M', '-i', inMp3, '-vn', '-ac', '1', '-ar', '48000', '-c:a', 'libopus', '-b:a', '48k', '-vbr', 'on', outOgg]);
+            await execFileAsync('ffmpeg', ['-y', '-err_detect', 'ignore_err', '-f', 'mp3', '-i', inMp3, '-vn', '-ac', '1', '-ar', '48000', '-c:a', 'libopus', '-b:a', '48k', '-vbr', 'on', outOgg]);
         } catch {
             await execFileAsync('ffmpeg', ['-y', '-err_detect', 'ignore_err', '-i', inMp3, '-vn', '-ac', '1', '-ar', '48000', '-c:a', 'libopus', '-b:a', '48k', outOgg]);
         }
@@ -443,10 +443,20 @@ async function sendVoiceReply(sock, from, text, quoted) {
         if (!ogg?.length) throw new Error('Voice conversion produced empty output.');
         return await sock.sendMessage(from, { audio: ogg, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted });
     } catch {
-        return await sock.sendMessage(from, { audio: voiceBuffer, mimetype: 'audio/mpeg', ptt: false }, { quoted });
+        try {
+            await execFileAsync('ffmpeg', ['-y', '-i', inMp3, '-ac', '1', '-ar', '24000', '-c:a', 'libopus', '-b:a', '24k', `${tmp}_f.ogg`]);
+            const fOgg = await fs.readFile(`${tmp}_f.ogg`);
+            if (fOgg?.length > 512) {
+                const sent = await sock.sendMessage(from, { audio: fOgg, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted });
+                await fs.remove(`${tmp}_f.ogg`).catch(() => {});
+                return sent;
+            }
+        } catch {}
+        return await sock.sendMessage(from, { audio: voiceBuffer, mimetype: 'audio/mpeg', ptt: false, caption: '⚠️ VN failed — sent as audio' }, { quoted });
     } finally {
         await fs.remove(inMp3).catch(() => {});
         await fs.remove(outOgg).catch(() => {});
+        await fs.remove(`${tmp}_f.ogg`).catch(() => {});
     }
 }
 

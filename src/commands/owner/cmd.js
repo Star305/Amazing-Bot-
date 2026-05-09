@@ -344,10 +344,8 @@ export default {
 
                 case 'upload':
                 case 'attach': {
-                    const targetCategory = args[1]?.toLowerCase() || 'general';
-                    if (!CATEGORIES.includes(targetCategory)) {
-                        return await sock.sendMessage(from, { text: errorBox('Invalid category', CATEGORIES.join(', ')) }, { quoted: message });
-                    }
+                    const targetArg = (args[1] || '').trim();
+                    const srcDir = path.join(process.cwd(), 'src');
 
                     const ctx = message.message?.extendedTextMessage?.contextInfo;
                     const quotedMsg = ctx?.quotedMessage;
@@ -355,12 +353,12 @@ export default {
 
                     if (!docMsg) {
                         return await sock.sendMessage(from, {
-                            text: `💡  UPLOAD GUIDE\n\n1. Send your .js file as a document\n2. Reply to it with:\n   ${prefix}cmd upload [category]\n\nCategories: ${CATEGORIES.join(', ')}`
+                            text: `💡  *UPLOAD GUIDE*\n\nReply to a .js file with:\n  ${prefix}cmd upload <category>     → commands/<cat>/file.js\n  ${prefix}cmd upload path/to/file.js → src/path/to/file.js\n\nCategories: ${CATEGORIES.join(', ')}\n\nExamples:\n  Reply to file → ${prefix}cmd upload admin\n  Reply to file → ${prefix}cmd upload handlers/messageHandler.js`
                         }, { quoted: message });
                     }
 
-                    const fileName = docMsg.fileName || 'command.js';
-                    if (!fileName.endsWith('.js')) {
+                    const uploadedFileName = docMsg.fileName || 'command.js';
+                    if (!uploadedFileName.endsWith('.js')) {
                         return await sock.sendMessage(from, { text: errorBox('Invalid file type', 'Only .js files allowed') }, { quoted: message });
                     }
 
@@ -387,20 +385,69 @@ export default {
                     }
 
                     const content = buffer.toString('utf8');
-                    const targetPath = path.join(commandsDir, targetCategory, fileName);
 
-                    if (fs.existsSync(targetPath)) {
+                    let targetPath;
+                    let displayPath;
+
+                    if (!targetArg) {
+                        targetPath = path.join(commandsDir, 'general', uploadedFileName);
+                        displayPath = path.join('commands/general', uploadedFileName);
+                    } else if (CATEGORIES.includes(targetArg)) {
+                        targetPath = path.join(commandsDir, targetArg, uploadedFileName);
+                        displayPath = path.join('commands', targetArg, uploadedFileName);
+                    } else if (targetArg.endsWith('.js')) {
+                        targetPath = path.join(srcDir, targetArg);
+                        displayPath = targetArg;
+                    } else {
+                        targetPath = path.join(srcDir, targetArg, uploadedFileName);
+                        displayPath = path.join(targetArg, uploadedFileName);
+                    }
+
+                    // Safety: prevent escaping src/
+                    const resolved = path.resolve(targetPath);
+                    const resolvedSrc = path.resolve(srcDir);
+                    if (!resolved.startsWith(resolvedSrc)) {
+                        return await sock.sendMessage(from, { text: errorBox('Path rejected', 'Can only write files under src/') }, { quoted: message });
+                    }
+
+                    // Ensure parent directory exists
+                    await fs.promises.mkdir(path.dirname(resolved), { recursive: true }).catch(() => {});
+
+                    if (fs.existsSync(resolved)) {
                         const warn = await sock.sendMessage(from, {
-                            text: `⚠️  *${fileName}* already exists in ${targetCategory}\n\nReact ❤️ to this message within 60s to replace it.`
+                            text: `⚠️  *${path.basename(resolved)}* already exists at\n  ${displayPath}\n\nReact ❤️ within 60s to replace it.`
                         }, { quoted: message });
                         const confirmed = await waitForReaction(sock, from, warn.key.id, '❤️', sender);
                         if (!confirmed) {
                             return await sock.sendMessage(from, { text: `⏱️  Timed out. File was NOT replaced.` }, { quoted: warn });
                         }
-                        await installFile(sock, from, message, content, fileName, targetCategory, commandsDir, true);
-                    } else {
-                        await installFile(sock, from, message, content, fileName, targetCategory, commandsDir, false);
                     }
+
+                    fs.writeFileSync(resolved, content, 'utf8');
+                    const fileSize = fmtSize(Buffer.byteLength(content, 'utf8'));
+                    const lines = content.split('\n').length;
+
+                    let extra = '';
+                    // Try to load as a command if it's in commands/
+                    if (resolved.includes('/commands/')) {
+                        try {
+                            const catMatch = resolved.match(/\/commands\/(\w+)\//);
+                            if (catMatch) {
+                                const cat = catMatch[1];
+                                const loaded = await commandManager.loadCommand(cat, path.basename(resolved));
+                                if (loaded) extra = '\n⚡  Command loaded & active';
+                            }
+                        } catch {}
+                    }
+
+                    await sock.sendMessage(from, {
+                        text: successBox('FILE WRITTEN', [
+                            buildStatusBar('File:', path.basename(resolved)),
+                            buildStatusBar('Path:', displayPath),
+                            buildStatusBar('Size:', fileSize),
+                            buildStatusBar('Lines:', String(lines))
+                        ]) + extra
+                    }, { quoted: message });
                     break;
                 }
 

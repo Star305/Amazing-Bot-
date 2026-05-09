@@ -8,7 +8,7 @@ export default {
     name: 'antihijack',
     aliases: ['ahijack'],
     category: 'admin',
-    description: 'Protects group by demoting all admins except super admin and removes command caller',
+    description: 'Protects group by demoting all admins except super admin and bot. Removes command caller.',
     usage: 'antihijack <on|off|status|enforce>',
     cooldown: 3,
     groupOnly: true,
@@ -28,44 +28,46 @@ export default {
             }, { quoted: message });
         }
 
-        if (action === 'off') {
-            await setAntiHijackConfig(from, false, '');
-            return sock.sendMessage(from, { text: '✅ AntiHijack turned OFF.' }, { quoted: message });
+        if (action === 'enforce') {
+            try {
+                const meta = await sock.groupMetadata(from);
+                const botId = (sock?.user?.id || '').split(':')[0] + '@s.whatsapp.net';
+                const conf = await getAntiHijackConfig(from);
+                const ownerJid = conf.ownerJid || sender;
+
+                // All current admins
+                const admins = meta.participants.filter(p => p.admin).map(p => p.id);
+
+                // People to demote: all admins EXCEPT bot and the protected owner
+                const demoteTargets = admins.filter(jid =>
+                    normalizeJid(jid) !== normalizeJid(botId) &&
+                    normalizeJid(jid) !== normalizeJid(ownerJid)
+                );
+
+                // Demote in chunks
+                for (let i = 0; i < demoteTargets.length; i += 10) {
+                    await sock.groupParticipantsUpdate(from, demoteTargets.slice(i, i + 10), 'demote');
+                }
+
+                await sock.sendMessage(from, {
+                    text: `✅ AntiHijack enforced\nDemoted ${demoteTargets.length} admins.\nBot + super admin protected.`,
+                    mentions: demoteTargets
+                }, { quoted: message });
+            } catch (e) {
+                await sock.sendMessage(from, { text: `❌ Enforce failed: ${e.message}` }, { quoted: message });
+            }
+            return;
         }
 
+        const value = action === 'on';
+        const conf = await getAntiHijackConfig(from);
+        conf.enabled = value;
+        conf.ownerJid = conf.ownerJid || sender;
+        await setAntiHijackConfig(from, conf);
 
-        if (action === 'enforce' || action === 'on') {
-            const meta = await sock.groupMetadata(from);
-            const botId = String(sock?.user?.id || '').split(':')[0] + '@s.whatsapp.net';
-            const admins = (meta?.participants || []).filter((p) => p.admin);
-            const superAdmins = admins.filter((p) => p.admin === 'superadmin').map((p) => p.id);
-            const demoteTargets = admins
-                .filter((p) => p.id !== botId)
-                .filter((p) => p.admin !== 'superadmin')
-                .map((p) => p.id);
-            const removeTargets = [sender].filter((jid) => jid && jid !== botId && !superAdmins.includes(jid));
-
-            for (let i = 0; i < demoteTargets.length; i += 10) {
-                await sock.groupParticipantsUpdate(from, demoteTargets.slice(i, i + 10), 'demote');
-            }
-            if (removeTargets.length) {
-                await sock.groupParticipantsUpdate(from, removeTargets, 'remove');
-            }
-
-            if (action === 'enforce') {
-                return sock.sendMessage(from, { text: `✅ Enforced admin lock. Demoted: ${demoteTargets.length}, removed caller: ${removeTargets.length ? 'yes' : 'no'}.` }, { quoted: message });
-            }
-        }
-
-        const cleanSender = normalizeJid(sender);
-        await setAntiHijackConfig(from, true, cleanSender);
-
-        return sock.sendMessage(from, {
-            text: [
-                '✅ AntiHijack turned ON.',
-                'Now watching for: hijacked, bug, crashgc.',
-                'Offenders will be kicked automatically.'
-            ].join('\n')
+        await sock.sendMessage(from, {
+            text: `🛡️ AntiHijack is now *${value ? 'ON' : 'OFF'}*\nOwner: @${sender.split('@')[0]}\n\nWhen ON, messages containing "hijack", "bug", or "crashgc" auto-trigger enforce.`,
+            mentions: [sender]
         }, { quoted: message });
     }
 };

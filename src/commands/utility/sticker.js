@@ -69,7 +69,7 @@ export default {
                 isVideo = true;
             }
 
-            const botName = process.env.BOT_NAME || 'Ilom Bot';
+            const botName = process.env.BOT_NAME || 'Asta Bot';
             const ownerName = process.env.OWNER_NAME || 'Ilom';
 
             const stickerOptions = {

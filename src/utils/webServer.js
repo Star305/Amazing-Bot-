@@ -158,6 +158,16 @@ class WebServer {
         this.app.get('/qr', this.handleQRPage.bind(this));
         this.app.get('/qr/image', this.handleQRImage.bind(this));
         this.app.get('/qr/data', this.handleQRData.bind(this));
+        
+        // Admin panel and deployment routes
+        this.app.use('/api', (await import('../adminRoutes.js')).default);
+        this.app.get('/admin', (req, res) => {
+          res.sendFile(path.join(__dirname, '..', '..', 'public', 'admin', 'index.html'));
+        });
+        this.app.get('/dashboard', (req, res) => {
+          res.sendFile(path.join(__dirname, '..', '..', 'public', 'dashboard', 'index.html'));
+        });
+        this.app.use(express.static(path.join(__dirname, '..', '..', 'public')));
 
         await this.loadAPIRoutes();
 

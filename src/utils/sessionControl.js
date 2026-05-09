@@ -103,3 +103,50 @@ export function normalizePhone(input = '') {
 export function toPhoneJid(input = '') {
     return toJid(input);
 }
+
+export async function listAllSessions() {
+    const store = await loadStore();
+    return Object.keys(store).sort();
+}
+
+export async function getSessionControlById(sessionId) {
+    const store = await loadStore();
+    const row = store[sessionId] || {};
+    return {
+        sessionId,
+        prefix: row.prefix || config.prefix,
+        privateMode: row.privateMode === true,
+        autoRead: row.autoRead !== false,
+        autoTyping: row.autoTyping === true,
+        autoOnline: row.autoOnline !== false,
+        publicMode: row.publicMode !== false,
+        owners: row.owners || [],
+        sudoers: row.sudoers || [],
+        updatedAt: row.updatedAt || ''
+    };
+}
+
+export async function updateSessionControlById(sessionId, patch = {}) {
+    const store = await loadStore();
+    const current = await getSessionControlById(sessionId);
+    store[sessionId] = {
+        ...store[sessionId],
+        prefix: typeof patch.prefix === 'string' && patch.prefix.trim() ? patch.prefix.trim() : current.prefix,
+        privateMode: typeof patch.privateMode === 'boolean' ? patch.privateMode : current.privateMode,
+        autoRead: typeof patch.autoRead === 'boolean' ? patch.autoRead : current.autoRead,
+        autoTyping: typeof patch.autoTyping === 'boolean' ? patch.autoTyping : current.autoTyping,
+        autoOnline: typeof patch.autoOnline === 'boolean' ? patch.autoOnline : current.autoOnline,
+        publicMode: typeof patch.publicMode === 'boolean' ? patch.publicMode : current.publicMode,
+        owners: Array.isArray(patch.owners) ? patch.owners.map(normalizeNumber).filter(Boolean) : current.owners,
+        sudoers: Array.isArray(patch.sudoers) ? patch.sudoers.map(normalizeNumber).filter(Boolean) : current.sudoers,
+        updatedAt: new Date().toISOString()
+    };
+    await saveStore(store);
+    return await getSessionControlById(sessionId);
+}
+
+export async function deleteSessionControl(sessionId) {
+    const store = await loadStore();
+    delete store[sessionId];
+    await saveStore(store);
+}

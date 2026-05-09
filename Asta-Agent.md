@@ -1,6 +1,6 @@
 # Terry Agent
 
-Terry is a root-level maintenance AI helper for Amazing-Bot.
+Terry is a root-level maintenance AI helper for Asta-Bot.
 
 ## Capabilities
 - Qwen text replies for diagnostics and repo questions.

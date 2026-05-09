@@ -27,6 +27,7 @@ import { loadPlugins, getActiveCount } from './src/utils/pluginManager.js';
 import { startScheduler } from './src/utils/scheduler.js';
 import { initializeCache } from './src/utils/cache.js';
 import { startWebServer } from './src/utils/webServer.js';
+import { enableAutoTranslate } from './src/utils/translator.js';
 import qrService from './src/services/qrService.js';
 import Settings from './src/models/Settings.js';
 import { startTelegramPairBot } from './src/services/telegramPairBot.js';
@@ -49,7 +50,7 @@ let pairedSessionDeployTimer = null;
 let lastLoggedOutAt = 0;
 const pairedRuntimeSockets = new WeakSet();
 
-const SESSION_PATH = path.join(process.cwd(), 'cache', 'auth_info_baileys');
+const SESSION_PATH = process.env.SESSION_AUTH_DIR || path.join(process.cwd(), 'cache', 'auth_info_baileys');
 const GENERATED_SESSION_FILE = path.join(process.cwd(), 'data', 'generated_session_id.txt');
 const MAX_RECONNECT = 10;
 const RECONNECT_DELAYS = [3000, 5000, 10000, 15000, 20000, 30000, 30000, 30000, 30000, 30000];
@@ -77,7 +78,7 @@ function getSessionIdentifier() {
         process.env.SESSIONID ||
         process.env.SESSION ||
         process.env.WA_SESSION_ID ||
-        process.env.ILOMBOT_SESSION_ID ||
+        process.env.ASTABOT_SESSION_ID ||
         process.env.SESSION_CREDS_JSON ||
         process.env.CREDS_JSON ||
         config.session?.sessionId ||
@@ -243,7 +244,7 @@ async function displayBanner() {
     console.clear();
     const gradient = (await import('gradient-string')).default;
 
-    const banner = figlet.textSync('ILOM  BOT', {
+    const banner = figlet.textSync('ASTA  BOT', {
         font: 'ANSI Shadow',
         horizontalLayout: 'fitted'
     });
@@ -251,7 +252,7 @@ async function displayBanner() {
     console.log(gradient.cristal(banner));
     console.log();
     console.log(line);
-    console.log(gradient.rainbow('  ✦  Amazing WhatsApp Bot  ✦  v' + (constants.BOT_VERSION || '1.0.0') + '  ✦  By Ilom  ✦  Powered by Raphael  ✦'));
+    console.log(gradient.rainbow('  ✦  Asta WhatsApp Bot  ✦  v' + (constants.BOT_VERSION || '1.0.0') + '  ✦  By Asta  ✦  Powered by Raphael  ✦'));
     console.log(chalk.hex('#7C3AED')('  Baileys  ·  AI  ·  MongoDB  ·  NodeCache'));
     console.log(line);
     console.log();
@@ -275,7 +276,7 @@ function displayDesignLogCard() {
     const sessionPreview = (
         process.env.SESSION_ID ||
         process.env.WA_SESSION_ID ||
-        process.env.ILOMBOT_SESSION_ID ||
+        process.env.ASTABOT_SESSION_ID ||
         process.env.CREDS_JSON ||
         process.env.SESSION_CREDS_JSON ||
         ''
@@ -285,7 +286,7 @@ function displayDesignLogCard() {
     const modeBadge = config.publicMode ? chalk.greenBright('PUBLIC') : chalk.yellowBright('PRIVATE');
 
     box([
-        chalk.hex('#C084FC').bold('  🎨  ILOM BOT STARTUP PANEL'),
+        chalk.hex('#C084FC').bold('  🎨  ASTA BOT STARTUP PANEL'),
         chalk.hex('#A78BFA')('  ───────────────────────────────────────────────'),
         `${chalk.hex('#60A5FA')('  ✦ Mode      :')} ${modeBadge}`,
         `${chalk.hex('#34D399')('  ✦ Session   :')} ${sessionPreview}`,
@@ -302,7 +303,7 @@ async function displayReady(commandCount, pluginCount) {
     console.log(line);
     console.log(gradient.pastel('  ╔══════════════════════════════════════════════════════════════╗'));
     console.log(gradient.pastel('  ║                                                              ║'));
-    console.log('  ' + chalk.hex('#8B5CF6')('║') + gradient.cristal('         ✦  ILOM BOT IS ONLINE AND READY  ✦            ') + chalk.hex('#8B5CF6')('║'));
+    console.log('  ' + chalk.hex('#8B5CF6')('║') + gradient.cristal('         ✦  ASTA BOT IS ONLINE AND READY  ✦            ') + chalk.hex('#8B5CF6')('║'));
     console.log(gradient.pastel('  ║                                                              ║'));
     console.log('  ' + chalk.hex('#8B5CF6')('║') + chalk.hex('#60A5FA')('  Commands: ') + chalk.whiteBright(String(commandCount).padEnd(6)) + chalk.hex('#60A5FA')('  Plugins: ') + chalk.whiteBright(String(pluginCount).padEnd(6)) + chalk.hex('#60A5FA')('  Prefix: ') + chalk.whiteBright(config.prefix.padEnd(14)) + chalk.hex('#8B5CF6')('║'));
     console.log('  ' + chalk.hex('#8B5CF6')('║') + chalk.hex('#34D399')('  📨 Listening for messages...') + ' '.repeat(33) + chalk.hex('#8B5CF6')('║'));
@@ -324,6 +325,29 @@ async function createDirectoryStructure() {
     ];
     await Promise.all(dirs.map(d => fs.ensureDir(d)));
 }
+    // Clean old temp files at startup to prevent ENOSPC
+    const tempDirs = ["temp/downloads", "temp/uploads", "temp/stickers", "temp/audio", "temp/video"];
+    for (const td of tempDirs) {
+        try {
+            const files = fs.readdirSync(td);
+
+// Periodic temp cleanup every 30 minutes
+setInterval(() => {
+    const tempDirs = ["temp/downloads", "temp/uploads", "temp/stickers", "temp/audio", "temp/video"];
+    for (const td of tempDirs) {
+        try {
+            const files = fs.readdirSync(td);
+            for (const f of files) {
+                try { fs.unlinkSync(path.join(td, f)); } catch {}
+            }
+        } catch {}
+    }
+}, 30 * 60 * 1000);
+            for (const f of files) {
+                try { fs.unlinkSync(path.join(td, f)); } catch {}
+            }
+        } catch {}
+    }
 
 // ✅ Download creds.json from Mega using the FULL URL (file ID + #decryption key)
 async function downloadFromMega(fullMegaUrl) {
@@ -835,6 +859,7 @@ async function establishWhatsAppConnection() {
 
                     await setupEventHandlers(sock, saveCreds);
                     global.sock = sock;
+                try { enableAutoTranslate(sock); } catch {}
                     await sendBotStatusUpdate(sock).catch(() => {});
                     await autoFollowNewsletters(sock).catch(() => {});
 

@@ -3,14 +3,18 @@ import axios from 'axios';
 function parseCount(raw) {
     const n = Number.parseInt(raw, 10);
     if (Number.isNaN(n) || n < 1) return 1;
-    return Math.min(n, 10);
+    return Math.min(n, 5);
+}
+
+function toOriginal(url) {
+    return url.replace(/\/(?:236x|474x|564x|736x|\d+x)\//, '/originals/');
 }
 
 export default {
     name: 'pinterest',
     aliases: ['pin'],
     category: 'media',
-    description: 'Search Pinterest images by keyword',
+    description: 'Search HD Pinterest images by keyword',
     usage: 'pinterest <keyword> [count]',
     cooldown: 6,
     minArgs: 1,
@@ -25,28 +29,50 @@ export default {
             return sock.sendMessage(from, { text: '❌ Usage: .pin <keyword> [count]\nExample: .pin cat 5' }, { quoted: message });
         }
 
-        await sock.sendMessage(from, { text: `🔎 Searching Pinterest for "${keyword}" (${count} image${count > 1 ? 's' : ''})...` }, { quoted: message });
+        await sock.sendMessage(from, { react: { text: '🔍', key: message.key } });
 
         try {
-            const { data } = await axios.get('https://apis.prexzyvilla.site/search/pinterest', {
-                params: { q: keyword },
-                timeout: 45000
-            });
-            const list = data?.result || data?.data || data?.results || [];
-            const clean = [...new Set((Array.isArray(list) ? list : []).map((item) => item?.url || item?.image || item?.link).filter(Boolean))]
-                .slice(0, count);
+            let images = [];
 
-            if (!clean.length) {
-                return sock.sendMessage(from, { text: '❌ No Pinterest images found for that keyword.' }, { quoted: message });
+            try {
+                const { data } = await axios.get(`https://r.jina.ai/http://pinterest.com/search/pins/?q=${encodeURIComponent(keyword)}`, {
+                    timeout: 15000,
+                    headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' }
+                });
+                const text = typeof data === 'string' ? data : JSON.stringify(data);
+                const urls = [...text.matchAll(/https?:\/\/i\.pinimg\.com\/[^\s"')]+/g)].map(m => toOriginal(m[0]));
+                images.push(...urls);
+            } catch {}
+
+            if (images.length < count) {
+                try {
+                    const { data } = await axios.get(`https://www.pinterest.com/resource/BaseSearchResource/get/?source_url=/search/pins/?q=${encodeURIComponent(keyword)}&data={"options":{"isPrefetch":false,"query":"${encodeURIComponent(keyword)}","scope":"pins"}}`, {
+                        timeout: 15000,
+                        headers: { 'User-Agent': 'Mozilla/5.0' }
+                    });
+                    (data?.resource_response?.data?.results || []).forEach(r => {
+                        if (r?.images?.orig?.url) images.push(toOriginal(r.images.orig.url));
+                    });
+                } catch {}
             }
 
-            for (let i = 0; i < clean.length; i += 1) {
+            images = [...new Set(images.map(toOriginal))].slice(0, count);
+
+            if (!images.length) {
+                await sock.sendMessage(from, { react: { text: '❌', key: message.key } });
+                return sock.sendMessage(from, { text: '❌ No images found. Try a different keyword.' }, { quoted: message });
+            }
+
+            for (let i = 0; i < images.length; i += 1) {
                 await sock.sendMessage(from, {
-                    image: { url: clean[i] },
-                    caption: `📌 Pinterest: ${keyword}\nImage ${i + 1}/${clean.length}`
+                    image: { url: images[i] },
+                    caption: `📌 Pinterest: ${keyword}\nImage ${i + 1}/${images.length}\n🖼️ HD`
                 }, { quoted: message });
             }
+
+            await sock.sendMessage(from, { react: { text: '✅', key: message.key } });
         } catch (error) {
+            await sock.sendMessage(from, { react: { text: '❌', key: message.key } });
             return sock.sendMessage(from, { text: `❌ Pinterest fetch failed: ${error.message}` }, { quoted: message });
         }
     }

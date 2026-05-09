@@ -6,6 +6,7 @@ import axios from 'axios';
 import { createPromoteImage, createDemoteImage } from '../utils/canvasUtils.js';
 import { normNum } from '../utils/adminUtils.js';
 import { isAntiOutEnabled } from '../utils/antioutStore.js';
+import { isAntiLeaveEnabled } from '../commands/admin/antileave.js';
 
 const antiOutLastAttempt = new Map();
 
@@ -70,7 +71,18 @@ class GroupHandler {
             if (!participants.length) return;
 
             const enabled = await isAntiOutEnabled(groupId);
-            if (!enabled) return;
+            if (!enabled) {
+                // Check antileave toggle — re-add anyone who leaves
+                if (await isAntiLeaveEnabled(groupId)) {
+                    for (const participant of participants) {
+                        const isVoluntaryLeave = action === 'leave' || !author || author === participant;
+                        if (!isVoluntaryLeave) continue;
+                        await new Promise(r => setTimeout(r, 3000));
+                        await sock.groupParticipantsUpdate(groupId, [participant], 'add').catch(() => {});
+                    }
+                }
+                return;
+            }
 
             const botJid = sock?.user?.id?.split(':')[0] || '';
             const meta = await sock.groupMetadata(groupId).catch(() => null);

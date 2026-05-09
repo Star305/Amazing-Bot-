@@ -1,15 +1,12 @@
 import axios from 'axios';
-
 export default {
-  name: 'neko', aliases: ['nekopic'], category: 'fun', description: 'Random neko image', usage: 'neko', cooldown: 5,
-  async execute({ sock, message, from }) {
-    try {
-      const { data } = await axios.get('https://api.nekosapi.com/v4/images/random', { timeout: 10000 });
-      const imageUrl = Array.isArray(data) ? data[0]?.url : data?.url;
-      if (!imageUrl) throw new Error('No image returned');
-      await sock.sendMessage(from, { image: { url: imageUrl }, caption: '🐾 Random Neko' }, { quoted: message });
-    } catch (e) {
-      await sock.sendMessage(from, { text: `❌ neko failed: ${e.message}` }, { quoted: message });
+    name: 'neko', aliases: ['animeimg'], category: 'fun',
+    description: 'Get a random anime neko image', usage: 'neko', cooldown: 3,
+    async execute({ sock, message, from }) {
+        await sock.sendMessage(from, { react: { text: '🐱', key: message.key } });
+        try {
+            const { data } = await axios.get('https://apis.prexzyvilla.site/random/anime/neko', { responseType: 'arraybuffer', timeout: 15000 });
+            await sock.sendMessage(from, { image: Buffer.from(data), caption: '🐱 Neko!' }, { quoted: message });
+        } catch { await sock.sendMessage(from, { text: '❌ Failed.' }, { quoted: message }); }
     }
-  }
 };

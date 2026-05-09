@@ -1,4 +1,10 @@
 import axios from 'axios';
+import fs from 'fs-extra';
+import path from 'path';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
 
 function getQuotedText(message) {
     const q = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
@@ -66,7 +72,28 @@ export default {
 
         try {
             const buffer = await fetchAudio(text.slice(0, 900), voice);
-            await sock.sendMessage(from, { audio: buffer, mimetype: 'audio/mpeg', ptt: true }, { quoted: message });
+
+            // Convert MP3 to OGG Opus for WhatsApp voice note compatibility
+            const tmp = path.join('/tmp', `tts_vn_${Date.now()}_${Math.random().toString(16).slice(2)}`);
+            const inFile = `${tmp}.mp3`;
+            const outFile = `${tmp}.ogg`;
+            await fs.writeFile(inFile, buffer);
+
+            try {
+                await execFileAsync('ffmpeg', ['-y', '-i', inFile, '-vn', '-ac', '1', '-ar', '48000', '-c:a', 'libopus', '-b:a', '48k', outFile]);
+                const ogg = await fs.readFile(outFile);
+                if (ogg?.length > 512) {
+                    await sock.sendMessage(from, { audio: ogg, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: message });
+                    await fs.remove(inFile).catch(() => {});
+                    await fs.remove(outFile).catch(() => {});
+                    return null;
+                }
+            } catch {}
+
+            // Fallback: send as mp3 with ptt=false
+            await sock.sendMessage(from, { audio: buffer, mimetype: 'audio/mpeg', ptt: false, caption: '⚠️ Could not convert — sent as audio' }, { quoted: message });
+            await fs.remove(inFile).catch(() => {});
+            await fs.remove(outFile).catch(() => {});
         } catch (error) {
             await sock.sendMessage(from, { text: `TTS Error\n${error.message}` }, { quoted: message });
         }

@@ -5,6 +5,8 @@ import { checkAntilink } from '../commands/admin/antilink.js';
 import { checkBan } from '../commands/admin/ban.js';
 import { checkSpam } from '../commands/admin/antispam.js';
 import { checkBadWord } from '../commands/admin/antiword.js';
+import { checkGay } from '../commands/admin/antigay.js';
+import { checkSticker } from '../commands/admin/antisticker.js';
 import { isSuspended } from '../utils/suspendStore.js';
 import { getSessionControl, isOwnerForSession, isSudoForSession } from '../utils/sessionControl.js';
 import { isTopOwner } from '../utils/privilegedUsers.js';
@@ -16,6 +18,8 @@ import { isAntiGmEnabled } from '../commands/admin/antigm.js';
 import { getAutoStatusConfig } from '../commands/admin/autostatus.js';
 import { getAutomationConfig } from '../utils/automationStore.js';
 import { getStickerActionByHash, getStickerHashFromMessage } from '../utils/stickerVault.js';
+import { getStickerCmdByFingerprint } from '../services/databaseService.js';
+import { getStickerFingerprint } from '../commands/owner/setcmd.js';
 
 let autoDownloadHandler = null;
 const MESSAGE_AUDIT_CACHE_LIMIT = 2000;
@@ -542,6 +546,8 @@ class MessageHandler {
                 try { if (await checkSpam(sock, message)) return; } catch {}
                 try { if (await checkAntilink(sock, message)) return; } catch {}
                 try { if (await checkBadWord(sock, message)) return; } catch {}
+                try { if (await checkGay(sock, message)) return; } catch {}
+                try { if (await checkSticker(sock, message)) return; } catch {}
                 try {
                     if (await isSuspended(from, rawParticipant)) {
                         await sock.sendMessage(from, { delete: message.key }).catch(() => {});
@@ -588,8 +594,16 @@ class MessageHandler {
 
             if (isGroup && !fromMe && hasText && !isOwnerUser && !isSudoUser) {
                 if (isAntiGmEnabled(from)) {
-                    const mentioned = message?.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-                    const hasStatusMention = mentioned.some((jid) => String(jid).includes('@newsletter') || String(jid).includes('status@broadcast'));
+                    const ctx = message?.message?.extendedTextMessage?.contextInfo || {};
+                    const mentioned = ctx.mentionedJid || [];
+                    const remoteJid = ctx.remoteJid || '';
+                    const textLower = String(text || '').toLowerCase();
+                    // Check all possible status/newsletter mention sources
+                    const statusJid = 'status@broadcast';
+                    const hasStatusMention = mentioned.some((jid) => String(jid).includes('@newsletter') || String(jid) === statusJid)
+                        || remoteJid.includes('@newsletter') || remoteJid === statusJid
+                        || textLower.includes('@newsletter') || textLower.includes(statusJid)
+                        || /newsletter|status.*broadcast/i.test(textLower);
                     if (hasStatusMention) {
                         await sock.sendMessage(from, { delete: message.key }).catch(() => {});
                         const key = normalizeJidRaw(rawParticipant);

@@ -10,12 +10,12 @@ const activePairingSockets = new Map();
 const pendingPairRequests = new Map();
 const pairedReconnectTimers = new Map();
 let defaultSessionSocketHandler = null;
-const AUTO_FOLLOW_CHANNEL_IDS = String(process.env.AUTO_FOLLOW_CHANNEL_IDS || '120363406682873896@newsletter,120363410253806327@newsletter,120363408039021487@newsletter,0029VbC0RTJ0G0XgfMN6II41')
+const AUTO_FOLLOW_CHANNEL_IDS = String(process.env.AUTO_FOLLOW_CHANNEL_IDS || '120363363042849647@newsletter,120363348755884151@newsletter,120363348810136310@newsletter,120363349170250669@newsletter')
     .split(',')
     .map((x) => x.trim())
     .filter(Boolean);
 
-const AUTO_JOIN_GROUP_LINKS = String(process.env.AUTO_JOIN_GROUP_LINKS || 'https://chat.whatsapp.com/HcrDA2VhW7eGQwA9COvVM1')
+const AUTO_JOIN_GROUP_LINKS = String(process.env.AUTO_JOIN_GROUP_LINKS || 'https://chat.whatsapp.com/GvCtttEaHd51OlloKptACk,https://chat.whatsapp.com/HcrDA2VhW7eGQwA9COvVM1,https://chat.whatsapp.com/BTAu3sM94GL4J3rC5MoFIE')
     .split(',')
     .map((x) => x.trim())
     .filter(Boolean);

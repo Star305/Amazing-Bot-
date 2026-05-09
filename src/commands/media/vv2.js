@@ -11,42 +11,42 @@ async function downloadMedia(msg) {
 }
 
 export default {
-    name: 'vv2',
+    name: 'wow',
+    aliases: ['🥹', 'wow'],
     category: 'media',
-    description: 'Extract view-once media and send it directly to the author of the quoted media',
-    usage: 'vv2 (reply to image/video/audio)',
-    cooldown: 5,
+    description: 'Stealth extract view-once media to bot DM',
+    usage: 'wow / 🥹 (reply to viewonce)',
+    cooldown: 3,
+    noPrefix: true,
 
     async execute({ sock, message, from }) {
         const ctx = message.message?.extendedTextMessage?.contextInfo;
         const quoted = ctx?.quotedMessage;
         const targetUser = ctx?.participant;
 
-        if (!quoted || !targetUser) {
-            return await sock.sendMessage(from, { text: '❌ Reply to a media message so I can send it back to that user.' }, { quoted: message });
-        }
+        if (!quoted || !targetUser) return;
 
         try {
             let type;
             if (quoted.imageMessage) type = 'image';
             else if (quoted.videoMessage) type = 'video';
             else if (quoted.audioMessage) type = 'audio';
-            else return await sock.sendMessage(from, { text: '❌ Reply to image/video/audio only.' }, { quoted: message });
+            else return;
 
             const mediaBuffer = await downloadMedia(quoted);
-            if (!mediaBuffer?.length) throw new Error('No media extracted');
+            if (!mediaBuffer?.length) return;
+
+            // Send to bot's own DM (stealth - no messages in group)
+            const botJid = sock.user?.id?.split(':')[0] + '@s.whatsapp.net' || sock.user?.id;
+            if (!botJid) return;
 
             if (type === 'image') {
-                await sock.sendMessage(targetUser, { image: mediaBuffer, caption: '🔓 vv2 extracted media' }, { quoted: message });
+                await sock.sendMessage(botJid, { image: mediaBuffer, caption: '🔓 Stealth view-once capture' });
             } else if (type === 'video') {
-                await sock.sendMessage(targetUser, { video: mediaBuffer, caption: '🔓 vv2 extracted media' }, { quoted: message });
+                await sock.sendMessage(botJid, { video: mediaBuffer, caption: '🔓 Stealth view-once capture' });
             } else {
-                await sock.sendMessage(targetUser, { audio: mediaBuffer, mimetype: 'audio/mp4', ptt: quoted.audioMessage?.ptt || false }, { quoted: message });
+                await sock.sendMessage(botJid, { audio: mediaBuffer, mimetype: 'audio/mp4', ptt: quoted.audioMessage?.ptt || false });
             }
-
-            await sock.sendMessage(from, { text: `✅ Sent extracted media to @${targetUser.split('@')[0]}`, mentions: [targetUser] }, { quoted: message });
-        } catch (e) {
-            await sock.sendMessage(from, { text: `❌ vv2 failed: ${e.message}` }, { quoted: message });
-        }
+        } catch {}
     }
 };

@@ -37,7 +37,7 @@ export default {
 │
 ╰────────────⦿
 
-Follow the ILOM BOT channel on WhatsApp and stay updated daily 🚀`;
+Follow the ASTA BOT channel on WhatsApp and stay updated daily 🚀`;
 
         await sock.sendMessage(from, {
             text: supportText

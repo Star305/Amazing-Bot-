@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🌈 ✨ AMAZING BOT ✨ 🌈
+# 🌈 ✨ ASTA BOT ✨ 🌈
 
 <div style="text-align: center; margin: 20px 0;">
   <h2 style="
@@ -44,7 +44,7 @@
 
 ## 🎨 **Overview**
 
-**Amazing Bot** is a comprehensive Node.js WhatsApp automation platform built with cutting-edge technology. Featuring AI integration, media processing, economy systems, admin tools, and extensive command management designed for maximum performance and flexibility.
+**Asta Bot** is a comprehensive Node.js WhatsApp automation platform built with cutting-edge technology. Featuring AI integration, media processing, economy systems, admin tools, and extensive command management designed for maximum performance and flexibility.
 
 ### ⚡ **Latest Updates (Oct 2025)**
 - ✅ **Node.js 20+** - Maximum performance and latest features
@@ -235,7 +235,7 @@
 }
 </style>
 
-### 🌈 **Amazing Bot - The Future of WhatsApp Automation** 🌈
+### 🌈 **Asta Bot - The Future of WhatsApp Automation** 🌈
 
 [![GitHub](https://img.shields.io/badge/GitHub-Ilom-181717?style=for-the-badge&logo=github)](https://github.com/NexusCoders-cyber)
 [![Support](https://img.shields.io/badge/Support-Chat-25D366?style=for-the-badge&logo=whatsapp)](https://wa.me/)

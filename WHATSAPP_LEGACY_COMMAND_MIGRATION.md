@@ -1,4 +1,4 @@
-# WhatsApp Legacy Command Migration (GoatBot/FCA → Amazing Bot)
+# WhatsApp Legacy Command Migration (GoatBot/FCA → Asta Bot)
 
 This project uses **ESM command modules** with `export default` and an `execute()` method.
 

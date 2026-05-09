@@ -3,7 +3,7 @@ import ky from 'ky';
 async function spotifySearch(query) {
     const payload = await ky
         .get('https://omegatech-api.dixonomega.tech/api/Search/Spotify', {
-            searchParams: { q: query },
+            searchParams: { action: 'search', query },
             timeout: 30000
         })
         .json();
@@ -15,28 +15,27 @@ async function spotifySearch(query) {
     return payload.results[0];
 }
 
-async function spotifyDownload(id) {
+async function spotifyDownload(spotifyUrl) {
     const payload = await ky
-        .get('https://omegatech-api.dixonomega.tech/api/download/Spotify-dl', {
-            searchParams: { id },
-            timeout: 30000
+        .get('https://omegatech-api.dixonomega.tech/api/download/all', {
+            searchParams: { url: spotifyUrl },
+            timeout: 60000
         })
         .json();
 
-    if (!payload?.success || !payload?.downloadUrl) {
+    if (!payload?.success || !payload?.result?.audio?.length) {
         throw new Error('Spotify download URL not found');
     }
 
-    return payload.downloadUrl;
+    return payload.result.audio[0].url;
 }
 
 export default {
     name: 'spotify',
     aliases: ['spdl', 'spotdl'],
     category: 'downloader',
-    description: 'Search Spotify and send song audio + details',
+    description: 'Search Spotify and send audio',
     usage: 'spotify <song name>',
-    example: 'spotify Alone Alan Walker',
     cooldown: 8,
     permissions: ['user'],
     args: true,
@@ -45,49 +44,34 @@ export default {
     async execute({ sock, message, args, from }) {
         const query = args.join(' ').trim();
         if (!query) {
-            return await sock.sendMessage(from, {
-                text: '❌ Usage: .spotify <song name>'
-            }, { quoted: message });
+            return await sock.sendMessage(from, { text: '❌ Usage: .spotify <song name>' }, { quoted: message });
         }
-
-        await sock.sendMessage(from, { react: { text: '🎧', key: message.key } });
 
         try {
             const track = await spotifySearch(query);
-            const downloadUrl = await spotifyDownload(track.id);
-
-            const caption =
-                '🎵 *Spotify Download*\n\n' +
-                `📌 *Title:* ${track.title}\n` +
-                `🎤 *Artist:* ${track.artist}\n` +
-                `💿 *Album:* ${track.album}\n` +
-                `🆔 *Track ID:* ${track.id}`;
+            const downloadUrl = await spotifyDownload(track.spotifyUrl);
 
             await sock.sendMessage(from, {
                 audio: { url: downloadUrl },
                 mimetype: 'audio/mpeg',
                 ptt: false,
-                contextInfo: track.cover
+                contextInfo: track.thumbnail
                     ? {
                         externalAdReply: {
                             title: track.title,
                             body: track.artist,
-                            thumbnailUrl: track.cover,
-                            sourceUrl: `https://open.spotify.com/track/${track.id}`,
+                            thumbnailUrl: track.thumbnail,
+                            sourceUrl: track.spotifyUrl,
                             renderLargerThumbnail: true,
                             mediaType: 1
                         }
                     }
                     : undefined
             }, { quoted: message });
-
-            await sock.sendMessage(from, { text: caption }, { quoted: message });
-            await sock.sendMessage(from, { react: { text: '✅', key: message.key } });
         } catch (error) {
             await sock.sendMessage(from, {
-                text: `❌ Spotify command failed: ${error.message}`
+                text: `❌ Spotify failed: ${error.message}`
             }, { quoted: message });
-            await sock.sendMessage(from, { react: { text: '❌', key: message.key } });
         }
     }
 };

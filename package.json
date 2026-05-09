@@ -1,13 +1,11 @@
 {
-  "name": "ilom-whatsapp-bot",
+  "name": "asta-bot",
   "version": "1.0.0",
-  "description": "🧠 Amazing Bot 🧠 v1 created by Ilom - Advanced Multi-Device WhatsApp Bot with AI, Media Processing, and Comprehensive Features",
+  "description": "Asta Bot \u2014 Multi-Device WhatsApp Bot with AI, Multi-Session, Media Processing",
   "type": "module",
   "main": "index.js",
   "author": {
-    "name": "Ilom",
-    "email": "ilom@example.com",
-    "url": "https://ilom.tech"
+    "name": "Asta"
   },
   "contributors": [
     {
@@ -37,11 +35,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/NexusCoders-cyber/Amazing-Bot-.git"
+    "url": "git+https://github.com/NexusCoders-cyber/Asta-Bot-.git"
   },
-  "homepage": "https://github.com/NexusCoders-cyber/Amazing-Bot-#readme",
+  "homepage": "https://github.com/NexusCoders-cyber/Asta-Bot-#readme",
   "bugs": {
-    "url": "https://github.com/NexusCoders-cyber/Amazing-Bot-/issues"
+    "url": "https://github.com/NexusCoders-cyber/Asta-Bot-/issues"
   },
   "engines": {
     "node": "^22.12.0 || ^23.0.0 || >=24.0.0",
@@ -62,7 +60,10 @@
     "update": "node scripts/update.js",
     "update:shell": "bash scripts/update.sh",
     "debug": "DEBUG=* node index.js",
-    "logs": "pm2 logs ilom-bot"
+    "logs": "pm2 logs asta-bot",
+    "multi": "node launcher.js",
+    "sessions": "node launcher.js list",
+    "pair": "node launcher.js pair"
   },
   "dependencies": {
     "@cerebras/cerebras_cloud_sdk": "1.64.1",
