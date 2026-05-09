@@ -303,7 +303,7 @@ async function displayReady(commandCount, pluginCount) {
     console.log(line);
     console.log(gradient.pastel('  ╔══════════════════════════════════════════════════════════════╗'));
     console.log(gradient.pastel('  ║                                                              ║'));
-    console.log('  ' + chalk.hex('#8B5CF6')('║') + gradient.cristal('         ✦  ASTA BOT IS ONLINE AND READY  ✦            ') + chalk.hex('#8B5CF6')('║'));
+    console.log('  ' + chalk.hex('#8B5CF6')('║') + gradient.cristal('         ✦  M STAR BOT IS ONLINE AND READY  ✦            ') + chalk.hex('#8B5CF6')('║'));
     console.log(gradient.pastel('  ║                                                              ║'));
     console.log('  ' + chalk.hex('#8B5CF6')('║') + chalk.hex('#60A5FA')('  Commands: ') + chalk.whiteBright(String(commandCount).padEnd(6)) + chalk.hex('#60A5FA')('  Plugins: ') + chalk.whiteBright(String(pluginCount).padEnd(6)) + chalk.hex('#60A5FA')('  Prefix: ') + chalk.whiteBright(config.prefix.padEnd(14)) + chalk.hex('#8B5CF6')('║'));
     console.log('  ' + chalk.hex('#8B5CF6')('║') + chalk.hex('#34D399')('  📨 Listening for messages...') + ' '.repeat(33) + chalk.hex('#8B5CF6')('║'));
