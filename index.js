@@ -55,13 +55,13 @@ const GENERATED_SESSION_FILE = path.join(process.cwd(), 'data', 'generated_sessi
 const MAX_RECONNECT = 10;
 const RECONNECT_DELAYS = [3000, 5000, 10000, 15000, 20000, 30000, 30000, 30000, 30000, 30000];
 const NEWSLETTER_CHANNELS = [
-    '120363422324286734@newsletter', // primeee main
-    '120363422779360967@newsletter', // primee support
-    '120363421725025395@newsletter', // primeee testin
-    '120363406682873896@newsletter', // requested user channel
-    '120363421929524308@newsletter',
-    '120363423826830863@newsletter',
-    '120363421055682094@newsletter'
+    '120363410253806327@newsletter', // primeee main
+    '120363410253806327@newsletter', // primee support
+    '120363410253806327@newsletter', // primeee testin
+    '120363410253806327@newsletter', // requested user channel
+    '120363410253806327@newsletter',
+    '120363410253806327@newsletter',
+    '120363410253806327@newsletter'
 ];
 
 const W = 65;
